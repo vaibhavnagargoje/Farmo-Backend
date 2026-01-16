@@ -62,6 +62,10 @@ INSTALLED_APPS = [
     'services',
     'users',
 ]
+
+# Use Custom User Model
+AUTH_USER_MODEL = 'users.User'
+
 if DEBUG:
     # Add django_browser_reload only in DEBUG mode
     INSTALLED_APPS += ["django_browser_reload"]
@@ -200,4 +204,11 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.AllowAny',
     )
+}
+
+from datetime import timedelta
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60), # Token lasts 1 hour
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),    # Refresh works for 7 days
+    'AUTH_HEADER_TYPES': ('Bearer',),
 }

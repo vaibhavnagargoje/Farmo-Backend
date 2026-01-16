@@ -18,12 +18,22 @@ from django.contrib import admin
 from django.urls import path,include
 from django.conf import settings
 
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
+
 urlpatterns = [
     path('admin/', admin.site.urls),
 
+
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     # API V1 Routes
-    # usage in code: reverse('users:login')
-    # path('api/v1/users/', include('users.urls', namespace='users')),
+    # --- API VERSION 1 ---
+
+    # Users App (Authentication & User Management)
+    path('api/v1/users/', include('apps.users.urls', namespace='users')),
 ]
 
 if settings.DEBUG:

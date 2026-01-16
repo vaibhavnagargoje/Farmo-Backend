@@ -1,9 +1,10 @@
 from django.urls import path
-from . import views # assuming you have these views
+from .views import SendOTPView, VerifyOTPView
 
-# This is the namespace registration
-app_name = '' 
+app_name = 'users' 
 
 urlpatterns = [
-    path()
+    # OTP Authentication Routes
+    path('auth/send-otp/', SendOTPView.as_view(), name='send-otp'),
+    path('auth/verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
 ]
