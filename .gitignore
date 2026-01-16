@@ -1,1 +1,16 @@
 venv
+__pycache__/
+*.pyc
+db.sqlite3
+media/
+/staticfiles/
+.DS_Store
+.env
+*.log
+.idea/
+.vscode/
+migrations/
+*.pyc
+
+# Django migrations
+**/migrations/
