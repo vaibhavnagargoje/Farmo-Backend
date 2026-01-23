@@ -1,9 +1,10 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
-from .serializers import SendOTPSerializer, VerifyOTPSerializer, UserSerializer
+from .serializers import SendOTPSerializer, VerifyOTPSerializer, UserSerializer, ProfileUpdateSerializer
 import random
 
 User = get_user_model()
@@ -85,3 +86,40 @@ class VerifyOTPView(APIView):
             return Response({"error": "Invalid or expired OTP"}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ProfileUpdateView(APIView):
+    """
+    Update basic profile fields after first login.
+    Body: { "first_name": "Rahul", "last_name": "Kumar", "full_name": "Rahul Kumar", "village": "Rampur" }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ProfileUpdateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        data = serializer.validated_data
+
+        # Update User fields
+        if "first_name" in data:
+            user.first_name = data.get("first_name", user.first_name)
+        if "last_name" in data:
+            user.last_name = data.get("last_name", user.last_name)
+        user.save()
+
+        # Update CustomerProfile (if exists)
+        profile = getattr(user, "customer_profile", None)
+        if profile:
+            if "full_name" in data:
+                profile.full_name = data.get("full_name", profile.full_name)
+            if "village" in data:
+                profile.default_address = data.get("village", profile.default_address)
+            profile.save()
+
+        return Response({
+            "message": "Profile updated",
+            "user": UserSerializer(user).data,
+        }, status=status.HTTP_200_OK)

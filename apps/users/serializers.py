@@ -24,3 +24,13 @@ class VerifyOTPSerializer(serializers.Serializer):
     """
     phone_number = serializers.CharField(max_length=15, required=True)
     otp = serializers.CharField(max_length=6, min_length=4, required=True)
+
+
+class ProfileUpdateSerializer(serializers.Serializer):
+    """
+    Updates basic user profile data after first login.
+    """
+    first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    full_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    village = serializers.CharField(max_length=255, required=False, allow_blank=True)
