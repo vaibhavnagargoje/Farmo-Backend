@@ -1,9 +1,20 @@
+# apps/partners/urls.py
 from django.urls import path
-from . import views # assuming you have these views
+from .views import (
+    PartnerRegistrationView,
+    PartnerProfileView,
+    PartnerPublicView,
+    PartnerDashboardView
+)
 
-# This is the namespace registration
-app_name = '' 
+app_name = 'partners'
 
 urlpatterns = [
-    path()
+    # Partner Registration & Profile Management
+    path('register/', PartnerRegistrationView.as_view(), name='register'),
+    path('profile/', PartnerProfileView.as_view(), name='profile'),
+    path('dashboard/', PartnerDashboardView.as_view(), name='dashboard'),
+    
+    # Public Partner View (for customers)
+    path('<int:id>/', PartnerPublicView.as_view(), name='public-profile'),
 ]

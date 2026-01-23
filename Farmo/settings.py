@@ -45,9 +45,12 @@ INSTALLED_APPS = [
 
     "tailwind",
     "theme",
+    'corsheaders',
 
     'rest_framework',
     'rest_framework.authtoken',
+    'rest_framework_simplejwt', 
+    # 'rest_framework_simplejwt.token_blacklist',
 
 
     #custom apps inside apps folder
@@ -75,6 +78,7 @@ INTERNAL_IPS = ["127.0.0.1"]
 NPM_BIN_PATH = r"C:\Program Files\nodejs\npm.cmd"
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -88,6 +92,12 @@ if DEBUG:
     MIDDLEWARE += [
         "django_browser_reload.middleware.BrowserReloadMiddleware",
     ]
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+]
+CORS_ALLOW_CREDENTIALS = True
+
 
 ROOT_URLCONF = 'Farmo.urls'
 
@@ -190,6 +200,18 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Where to collect static files in production (python manage.py collectstatic)
+STATIC_ROOT = BASE_DIR / "staticfiles" 
+
+# Additional locations of static files
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
+
+# Media Files (User uploads like KYC, Profile Pics)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / "media"
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -210,5 +232,7 @@ from datetime import timedelta
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60), # Token lasts 1 hour
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),    # Refresh works for 7 days
+    # 'ROTATE_REFRESH_TOKENS': True,  
+    # 'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
 }

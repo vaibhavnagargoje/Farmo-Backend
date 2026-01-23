@@ -17,6 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path,include
 from django.conf import settings
+from django.conf.urls.static import static
 
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -34,10 +35,22 @@ urlpatterns = [
 
     # Users App (Authentication & User Management)
     path('api/v1/users/', include('apps.users.urls', namespace='users')),
+    
+    # Partners App (Partner Registration & Management)
+    path('api/v1/partners/', include('partners.urls', namespace='partners')),
+    
+    # Services App (Service Listings & Categories)
+    path('api/v1/services/', include('services.urls', namespace='services')),
+    
+    # Bookings App (Customer & Provider Bookings)
+    path('api/v1/bookings/', include('bookings.urls', namespace='bookings')),
 ]
 
 if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     # Include django_browser_reload URLs only in DEBUG mode
     urlpatterns += [
         path("__reload__/", include("django_browser_reload.urls")),
+        
     ]
