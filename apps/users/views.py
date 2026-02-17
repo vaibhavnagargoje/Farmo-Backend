@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
-from .serializers import SendOTPSerializer, VerifyOTPSerializer, UserSerializer, ProfileUpdateSerializer
+from .serializers import SendOTPSerializer, VerifyOTPSerializer, UserSerializer, ProfileUpdateSerializer, CustomerProfileSerializer
 import random
 
 User = get_user_model()
@@ -95,6 +95,26 @@ class ProfileUpdateView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        """Get customer profile including location data."""
+        user = request.user
+        profile = getattr(user, "customer_profile", None)
+        
+        response_data = {
+            "user": UserSerializer(user).data,
+            "profile": None
+        }
+        
+        if profile:
+            response_data["profile"] = {
+                "full_name": profile.full_name,
+                "default_address": profile.default_address,
+                "default_lat": str(profile.default_lat) if profile.default_lat else None,
+                "default_lng": str(profile.default_lng) if profile.default_lng else None,
+            }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+
     def post(self, request):
         serializer = ProfileUpdateSerializer(data=request.data)
         if not serializer.is_valid():
@@ -117,9 +137,25 @@ class ProfileUpdateView(APIView):
                 profile.full_name = data.get("full_name", profile.full_name)
             if "village" in data:
                 profile.default_address = data.get("village", profile.default_address)
+            if "default_address" in data:
+                profile.default_address = data.get("default_address", profile.default_address)
+            if "default_lat" in data:
+                profile.default_lat = data.get("default_lat")
+            if "default_lng" in data:
+                profile.default_lng = data.get("default_lng")
             profile.save()
+
+        profile_data = None
+        if profile:
+            profile_data = {
+                "full_name": profile.full_name,
+                "default_address": profile.default_address,
+                "default_lat": str(profile.default_lat) if profile.default_lat else None,
+                "default_lng": str(profile.default_lng) if profile.default_lng else None,
+            }
 
         return Response({
             "message": "Profile updated",
             "user": UserSerializer(user).data,
+            "profile": profile_data
         }, status=status.HTTP_200_OK)

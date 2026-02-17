@@ -10,10 +10,24 @@ class ServiceImageInline(admin.TabularInline):
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'slug', 'is_active')
+    list_display = ('name', 'slug', 'is_active', 'instant_enabled', 'instant_price', 'instant_price_unit')
     prepopulated_fields = {'slug': ('name',)}
-    list_filter = ('is_active',)
+    list_filter = ('is_active', 'instant_enabled')
     search_fields = ('name',)
+    list_editable = ('instant_price', 'instant_enabled')
+
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('name', 'slug', 'icon', 'is_active')
+        }),
+        ('Instant Booking Settings', {
+            'description': 'Configure pricing and behavior for instant (quick) bookings. Price is set here by admin.',
+            'fields': (
+                'instant_enabled', 'instant_price', 'instant_price_unit',
+                'instant_timeout_minutes', 'instant_search_radius_km'
+            )
+        }),
+    )
 
 @admin.register(Service)
 class ServiceAdmin(admin.ModelAdmin):

@@ -34,3 +34,16 @@ class ProfileUpdateSerializer(serializers.Serializer):
     last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
     full_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
     village = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    default_lat = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+    default_lng = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+    default_address = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+
+class CustomerProfileSerializer(serializers.Serializer):
+    """
+    Serializer for customer profile location data.
+    """
+    full_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    default_address = serializers.CharField(max_length=500, required=False, allow_blank=True)
+    default_lat = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+    default_lng = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)

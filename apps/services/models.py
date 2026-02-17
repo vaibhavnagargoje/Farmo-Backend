@@ -15,6 +15,34 @@ class Category(models.Model):
     icon = models.ImageField(upload_to='categories/icons/', blank=True, null=True)
     is_active = models.BooleanField(default=True)
 
+    # ── Instant Booking Pricing (set by Admin) ──
+    instant_price = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text="Base price for instant bookings in this category (set by admin)"
+    )
+    instant_price_unit = models.CharField(
+        max_length=10,
+        choices=[
+            ('HOUR', 'Per Hour'), ('DAY', 'Per Day'),
+            ('KM', 'Per Kilometer'), ('ACRE', 'Per Acre'),
+            ('FIXED', 'Fixed Price'),
+        ],
+        default='HOUR',
+        help_text="Price unit for instant bookings"
+    )
+    instant_enabled = models.BooleanField(
+        default=True,
+        help_text="Allow instant (quick) bookings for this category"
+    )
+    instant_timeout_minutes = models.PositiveIntegerField(
+        default=10,
+        help_text="Minutes before an instant booking expires if no provider accepts"
+    )
+    instant_search_radius_km = models.PositiveIntegerField(
+        default=15,
+        help_text="Radius (km) to search for nearby providers for instant bookings"
+    )
+
     def __str__(self):
         return self.name
 
