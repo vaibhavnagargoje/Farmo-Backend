@@ -33,7 +33,8 @@ class PartnerProfileSerializer(serializers.ModelSerializer):
         model = PartnerProfile
         fields = [
             'id', 'user', 'user_phone', 'partner_type', 'business_name', 'about',
-            'is_verified', 'is_kyc_submitted', 'base_city', 'rating', 'jobs_completed', 'created_at'
+            'is_verified', 'is_kyc_submitted', 'is_available', 'base_city',
+            'latitude', 'longitude', 'rating', 'jobs_completed', 'created_at'
         ]
         read_only_fields = ['id', 'user', 'is_verified', 'rating', 'jobs_completed', 'created_at']
 
@@ -58,13 +59,11 @@ class PartnerRegistrationSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         partner_type = attrs.get('partner_type')
         
-        # Ensure the correct nested details are provided based on type
-        if partner_type == PartnerProfile.PartnerType.LABOR and not attrs.get('labor_details'):
-            raise serializers.ValidationError({"labor_details": "Required for Labor partners."})
-        if partner_type == PartnerProfile.PartnerType.MACHINERY_OWNER and not attrs.get('machinery_details'):
-            raise serializers.ValidationError({"machinery_details": "Required for Machinery partners."})
-        if partner_type == PartnerProfile.PartnerType.TRANSPORTER and not attrs.get('transport_details'):
-            raise serializers.ValidationError({"transport_details": "Required for Transport partners."})
+        # Note: Nested details (labor_details, machinery_details, transport_details)
+        # are optional during initial onboarding. Partners can add them later
+        # via profile update. We only validate that a valid partner_type is provided.
+        if not partner_type:
+            raise serializers.ValidationError({"partner_type": "Partner type is required."})
         
         return attrs
 
@@ -102,6 +101,6 @@ class PartnerProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = PartnerProfile
         fields = [
-            'business_name', 'about', 'base_city',
-            'aadhar_card_front', 'aadhar_card_back', 'pan_card', 'is_kyc_submitted'
+            'business_name', 'about', 'base_city', 'latitude', 'longitude',
+            'is_available', 'aadhar_card_front', 'aadhar_card_back', 'pan_card', 'is_kyc_submitted'
         ]

@@ -34,6 +34,11 @@ class PartnerProfile(models.Model):
     
     # Base Location (Where they are based)
     base_city = models.CharField(max_length=100)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    
+    # Availability (Online/Offline toggle)
+    is_available = models.BooleanField(default=True, help_text="Partner is online and accepting jobs")
     
     # Metrics
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.0)

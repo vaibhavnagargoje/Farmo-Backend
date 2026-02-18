@@ -3,6 +3,7 @@ from rest_framework import status, generics, filters
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.shortcuts import get_object_or_404
 
 from .models import Category, Service, ServiceImage
@@ -68,9 +69,10 @@ class ServiceDetailView(generics.RetrieveAPIView):
 class PartnerServiceListView(generics.ListCreateAPIView):
     """
     GET: List all services owned by the logged-in partner.
-    POST: Create a new service.
+    POST: Create a new service (accepts multipart/form-data for images).
     """
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_serializer_class(self):
         if self.request.method == 'POST':

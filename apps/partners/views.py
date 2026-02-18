@@ -3,6 +3,7 @@ from rest_framework import status, generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.shortcuts import get_object_or_404
 
 from .models import PartnerProfile, LaborDetails, MachineryDetails, TransportDetails
@@ -16,12 +17,47 @@ from .serializers import (
 )
 
 
+class PartnerStatusView(APIView):
+    """
+    GET: Check if the current user is already a Partner.
+    Returns partner info if exists, or user info if not.
+    Used by frontend onboarding page to decide flow.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        try:
+            partner = user.partner_profile
+            return Response({
+                "is_partner": True,
+                "partner": PartnerProfileSerializer(partner).data,
+                "user": {
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "phone_number": user.phone_number,
+                }
+            })
+        except PartnerProfile.DoesNotExist:
+            return Response({
+                "is_partner": False,
+                "partner": None,
+                "user": {
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "phone_number": user.phone_number,
+                }
+            })
+
+
 class PartnerRegistrationView(APIView):
     """
     POST: Register as a new Partner.
     A logged-in Customer can become a Partner by submitting this form.
+    Accepts multipart/form-data for KYC file uploads.
     """
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def post(self, request):
         # Check if user already has a partner profile
