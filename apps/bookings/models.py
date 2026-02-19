@@ -48,6 +48,10 @@ class Booking(models.Model):
     
     # --- JOB DETAILS ---
     booking_id = models.CharField(max_length=20, unique=True, editable=False) 
+    order_number = models.CharField(
+        max_length=20, unique=True, null=True, blank=True,
+        help_text="Quick order number (QO-YYYYMMDD-NNN) — auto-generated for instant bookings"
+    )
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     payment_status = models.CharField(max_length=20, choices=PaymentStatus.choices, default=PaymentStatus.PENDING)
     
@@ -57,6 +61,18 @@ class Booking(models.Model):
     
     # Instant booking expiry
     expires_at = models.DateTimeField(null=True, blank=True, help_text="When this instant booking expires if no provider accepts")
+    
+    # Broadcast tracking (for instant orders)
+    broadcast_count = models.PositiveIntegerField(
+        default=0, help_text="Number of broadcast rounds sent to providers"
+    )
+    current_broadcast_radius = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+        help_text="Radius (km) used in the latest broadcast round"
+    )
+    assigned_at = models.DateTimeField(
+        null=True, blank=True, help_text="When a provider accepted this instant order"
+    )
     
     # Tracking
     work_started_at = models.DateTimeField(null=True, blank=True)
@@ -91,12 +107,27 @@ class Booking(models.Model):
             return timezone.now() > self.expires_at and self.status == self.Status.SEARCHING
         return False
 
+    def _generate_order_number(self):
+        """Generate a daily-sequential quick order number: QO-YYYYMMDD-NNN"""
+        today = timezone.now().date()
+        today_str = today.strftime('%Y%m%d')
+        count = Booking.objects.filter(
+            booking_type=self.BookingType.INSTANT,
+            created_at__date=today,
+            order_number__isnull=False,
+        ).count()
+        return f"QO-{today_str}-{count + 1:03d}"
+
     def save(self, *args, **kwargs):
         # Auto-generate Booking ID
         if not self.booking_id:
             import uuid
             prefix = "FB" if self.booking_type == self.BookingType.INSTANT else "BK"
             self.booking_id = f"{prefix}-{uuid.uuid4().hex[:8].upper()}"
+        
+        # Auto-generate Order Number for instant bookings
+        if self.booking_type == self.BookingType.INSTANT and not self.order_number:
+            self.order_number = self._generate_order_number()
         
         # For instant bookings, set defaults
         if self.booking_type == self.BookingType.INSTANT:
@@ -146,16 +177,23 @@ class InstantBookingRequest(models.Model):
     provider = models.ForeignKey(PartnerProfile, on_delete=models.CASCADE, related_name='instant_requests')
     
     status = models.CharField(max_length=20, choices=RequestStatus.choices, default=RequestStatus.PENDING)
+    broadcast_round = models.PositiveIntegerField(
+        default=1, help_text="Broadcast round: 1 = initial, 2 = re-broadcast with expanded radius"
+    )
     
     notified_at = models.DateTimeField(auto_now_add=True)
     responded_at = models.DateTimeField(null=True, blank=True)
+    response_deadline = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Per-provider response deadline (distinct from overall booking expiry)"
+    )
     
     # Provider's distance from customer at time of request
     distance_km = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
 
     class Meta:
         ordering = ['distance_km', 'notified_at']
-        unique_together = ('booking', 'provider')  # One request per provider per booking
+        unique_together = ('booking', 'provider', 'broadcast_round')  # Allow same provider in different rounds
 
     def __str__(self):
-        return f"{self.booking.booking_id} → {self.provider.business_name} [{self.status}]"
+        return f"{self.booking.booking_id} → {self.provider.business_name} [R{self.broadcast_round}:{self.status}]"

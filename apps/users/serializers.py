@@ -47,3 +47,13 @@ class CustomerProfileSerializer(serializers.Serializer):
     default_address = serializers.CharField(max_length=500, required=False, allow_blank=True)
     default_lat = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
     default_lng = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+
+
+class LocationUpdateSerializer(serializers.Serializer):
+    """
+    Dedicated serializer for updating user location.
+    Used by the LocationView endpoint.
+    """
+    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=True)
+    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=True)
+    address = serializers.CharField(max_length=500, required=False, allow_blank=True, default='')

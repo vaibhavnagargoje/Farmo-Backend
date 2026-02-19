@@ -52,6 +52,40 @@ class ServiceListView(generics.ListAPIView):
         if price_unit:
             queryset = queryset.filter(price_unit=price_unit.upper())
         
+        # Location-based filtering using Haversine formula
+        lat = self.request.query_params.get('lat')
+        lng = self.request.query_params.get('lng')
+        distance_param = self.request.query_params.get('distance')
+
+        if lat and lng:
+            try:
+                user_lat = float(lat)
+                user_lng = float(lng)
+                radius = float(distance_param) if distance_param else 50.0  # default 50km
+
+                # Only include services that have location data
+                queryset = queryset.exclude(location_lat__isnull=True).exclude(location_lng__isnull=True)
+
+                # Haversine distance annotation (result in km)
+                from django.db.models import FloatField, Value, F, ExpressionWrapper
+                from django.db.models.functions import ACos, Cos, Radians, Sin
+                import math
+
+                queryset = queryset.annotate(
+                    distance=ExpressionWrapper(
+                        Value(6371.0) * ACos(
+                            Cos(Radians(Value(user_lat, output_field=FloatField()))) *
+                            Cos(Radians(F('location_lat'))) *
+                            Cos(Radians(F('location_lng')) - Radians(Value(user_lng, output_field=FloatField()))) +
+                            Sin(Radians(Value(user_lat, output_field=FloatField()))) *
+                            Sin(Radians(F('location_lat')))
+                        ),
+                        output_field=FloatField()
+                    )
+                ).filter(distance__lte=radius).order_by('distance')
+            except (ValueError, TypeError):
+                pass  # Invalid lat/lng values, skip location filter
+        
         return queryset
 
 

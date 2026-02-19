@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
-from .serializers import SendOTPSerializer, VerifyOTPSerializer, UserSerializer, ProfileUpdateSerializer, CustomerProfileSerializer
+from .serializers import SendOTPSerializer, VerifyOTPSerializer, UserSerializer, ProfileUpdateSerializer, CustomerProfileSerializer, LocationUpdateSerializer
 import random
 
 User = get_user_model()
@@ -158,4 +158,60 @@ class ProfileUpdateView(APIView):
             "message": "Profile updated",
             "user": UserSerializer(user).data,
             "profile": profile_data
+        }, status=status.HTTP_200_OK)
+
+
+class LocationView(APIView):
+    """
+    Dedicated endpoint for user location management.
+    GET: Return saved location from CustomerProfile.
+    POST: Update location (latitude, longitude, address) on CustomerProfile.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Return the user's saved location."""
+        profile = getattr(request.user, "customer_profile", None)
+
+        if not profile or not profile.default_lat or not profile.default_lng:
+            return Response({
+                "has_location": False,
+                "location": None
+            }, status=status.HTTP_200_OK)
+
+        return Response({
+            "has_location": True,
+            "location": {
+                "latitude": str(profile.default_lat),
+                "longitude": str(profile.default_lng),
+                "address": profile.default_address or "",
+            }
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        """Update the user's saved location."""
+        serializer = LocationUpdateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data
+        profile = getattr(request.user, "customer_profile", None)
+
+        # Auto-create CustomerProfile if it doesn't exist yet
+        if not profile:
+            from .models import CustomerProfile
+            profile = CustomerProfile.objects.create(user=request.user)
+
+        profile.default_lat = data["latitude"]
+        profile.default_lng = data["longitude"]
+        profile.default_address = data.get("address", "")
+        profile.save()
+
+        return Response({
+            "message": "Location updated successfully",
+            "location": {
+                "latitude": str(profile.default_lat),
+                "longitude": str(profile.default_lng),
+                "address": profile.default_address or "",
+            }
         }, status=status.HTTP_200_OK)
