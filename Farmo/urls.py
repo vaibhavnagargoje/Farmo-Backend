@@ -34,7 +34,10 @@ urlpatterns = [
     # --- API VERSION 1 ---
 
     # Users App (Authentication & User Management)
-    path('api/v1/users/', include('apps.users.urls', namespace='users')),
+    path('api/v1/users/', include('users.urls', namespace='users')),
+
+    # Locations App (State/District/Tahsil & User Location)
+    path('api/v1/locations/', include('locations.urls', namespace='locations')),
     
     # Partners App (Partner Registration & Management)
     path('api/v1/partners/', include('partners.urls', namespace='partners')),

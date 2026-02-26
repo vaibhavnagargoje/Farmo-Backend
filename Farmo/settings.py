@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'reviews',
     'services',
     'users',
+    'locations',
 ]
 
 # Use Custom User Model
@@ -97,6 +98,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:3002",
     "http://127.0.0.1:3000",
+    "https://9e96-2402-8100-2d00-e9bc-98b9-7a6b-15dc-ef98.ngrok-free.app"
 ]
 CORS_ALLOW_CREDENTIALS = True
 

@@ -24,6 +24,7 @@ class PartnerStatusView(APIView):
     Used by frontend onboarding page to decide flow.
     """
     permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user

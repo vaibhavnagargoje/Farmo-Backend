@@ -19,7 +19,7 @@ class PartnerProfile(models.Model):
     partner_type = models.CharField(max_length=20, choices=PartnerType.choices)
     
     # Business Info
-    business_name = models.CharField(max_length=255, help_text="Name displayed to customers")
+    business_name = models.CharField(max_length=255, blank=True, null=True, help_text="Name displayed to customers")
     about = models.TextField(blank=True, help_text="Bio or Description of services")
     
     # KYC & Verification
@@ -32,10 +32,7 @@ class PartnerProfile(models.Model):
     aadhar_card_back = models.ImageField(upload_to='partners/kyc/', blank=True, null=True)
     pan_card = models.ImageField(upload_to='partners/kyc/', blank=True, null=True)
     
-    # Base Location (Where they are based)
-    base_city = models.CharField(max_length=100)
-    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    
     
     # Availability (Online/Offline toggle)
     is_available = models.BooleanField(default=True, help_text="Partner is online and accepting jobs")

@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
-from .serializers import SendOTPSerializer, VerifyOTPSerializer, UserSerializer, ProfileUpdateSerializer, CustomerProfileSerializer, LocationUpdateSerializer
+from .serializers import SendOTPSerializer, VerifyOTPSerializer, UserSerializer, ProfileUpdateSerializer, CustomerProfileSerializer
 import random
 
 User = get_user_model()
@@ -108,9 +108,13 @@ class ProfileUpdateView(APIView):
         if profile:
             response_data["profile"] = {
                 "full_name": profile.full_name,
-                "default_address": profile.default_address,
-                "default_lat": str(profile.default_lat) if profile.default_lat else None,
-                "default_lng": str(profile.default_lng) if profile.default_lng else None,
+                "user_address": profile.user_address,
+                "latitude": str(profile.latitude) if profile.latitude else None,
+                "longitude": str(profile.longitude) if profile.longitude else None,
+                "state": profile.state_id,
+                "district": profile.district_id,
+                "tahsil": profile.tahsil_id,
+                "village": profile.village_id,
             }
         
         return Response(response_data, status=status.HTTP_200_OK)
@@ -135,23 +139,33 @@ class ProfileUpdateView(APIView):
         if profile:
             if "full_name" in data:
                 profile.full_name = data.get("full_name", profile.full_name)
+            if "user_address" in data:
+                profile.user_address = data.get("user_address", profile.user_address)
+            if "latitude" in data:
+                profile.latitude = data.get("latitude")
+            if "longitude" in data:
+                profile.longitude = data.get("longitude")
+            if "state" in data:
+                profile.state_id = data.get("state")
+            if "district" in data:
+                profile.district_id = data.get("district")
+            if "tahsil" in data:
+                profile.tahsil_id = data.get("tahsil")
             if "village" in data:
-                profile.default_address = data.get("village", profile.default_address)
-            if "default_address" in data:
-                profile.default_address = data.get("default_address", profile.default_address)
-            if "default_lat" in data:
-                profile.default_lat = data.get("default_lat")
-            if "default_lng" in data:
-                profile.default_lng = data.get("default_lng")
+                profile.village_id = data.get("village")
             profile.save()
 
         profile_data = None
         if profile:
             profile_data = {
                 "full_name": profile.full_name,
-                "default_address": profile.default_address,
-                "default_lat": str(profile.default_lat) if profile.default_lat else None,
-                "default_lng": str(profile.default_lng) if profile.default_lng else None,
+                "user_address": profile.user_address,
+                "latitude": str(profile.latitude) if profile.latitude else None,
+                "longitude": str(profile.longitude) if profile.longitude else None,
+                "state": profile.state_id,
+                "district": profile.district_id,
+                "tahsil": profile.tahsil_id,
+                "village": profile.village_id,
             }
 
         return Response({
@@ -160,58 +174,3 @@ class ProfileUpdateView(APIView):
             "profile": profile_data
         }, status=status.HTTP_200_OK)
 
-
-class LocationView(APIView):
-    """
-    Dedicated endpoint for user location management.
-    GET: Return saved location from CustomerProfile.
-    POST: Update location (latitude, longitude, address) on CustomerProfile.
-    """
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        """Return the user's saved location."""
-        profile = getattr(request.user, "customer_profile", None)
-
-        if not profile or not profile.default_lat or not profile.default_lng:
-            return Response({
-                "has_location": False,
-                "location": None
-            }, status=status.HTTP_200_OK)
-
-        return Response({
-            "has_location": True,
-            "location": {
-                "latitude": str(profile.default_lat),
-                "longitude": str(profile.default_lng),
-                "address": profile.default_address or "",
-            }
-        }, status=status.HTTP_200_OK)
-
-    def post(self, request):
-        """Update the user's saved location."""
-        serializer = LocationUpdateSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        data = serializer.validated_data
-        profile = getattr(request.user, "customer_profile", None)
-
-        # Auto-create CustomerProfile if it doesn't exist yet
-        if not profile:
-            from .models import CustomerProfile
-            profile = CustomerProfile.objects.create(user=request.user)
-
-        profile.default_lat = data["latitude"]
-        profile.default_lng = data["longitude"]
-        profile.default_address = data.get("address", "")
-        profile.save()
-
-        return Response({
-            "message": "Location updated successfully",
-            "location": {
-                "latitude": str(profile.default_lat),
-                "longitude": str(profile.default_lng),
-                "address": profile.default_address or "",
-            }
-        }, status=status.HTTP_200_OK)
