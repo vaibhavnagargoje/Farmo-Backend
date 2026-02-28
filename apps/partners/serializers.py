@@ -33,8 +33,8 @@ class PartnerProfileSerializer(serializers.ModelSerializer):
         model = PartnerProfile
         fields = [
             'id', 'user', 'user_phone', 'partner_type', 'business_name', 'about',
-            'is_verified', 'is_kyc_submitted', 'is_available', 'base_city',
-            'latitude', 'longitude', 'rating', 'jobs_completed', 'created_at'
+            'is_verified', 'is_kyc_submitted', 'is_available',
+            'rating', 'jobs_completed', 'created_at'
         ]
         read_only_fields = ['id', 'user', 'is_verified', 'rating', 'jobs_completed', 'created_at']
 
@@ -51,7 +51,7 @@ class PartnerRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = PartnerProfile
         fields = [
-            'partner_type', 'business_name', 'about', 'base_city',
+            'partner_type', 'business_name', 'about',
             'aadhar_card_front', 'aadhar_card_back', 'pan_card',
             'labor_details', 'machinery_details', 'transport_details'
         ]
@@ -101,6 +101,6 @@ class PartnerProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = PartnerProfile
         fields = [
-            'business_name', 'about', 'base_city', 'latitude', 'longitude',
+            'business_name', 'about',
             'is_available', 'aadhar_card_front', 'aadhar_card_back', 'pan_card', 'is_kyc_submitted'
         ]

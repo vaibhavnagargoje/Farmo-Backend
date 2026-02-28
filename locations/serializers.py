@@ -38,3 +38,18 @@ class LocationUpdateSerializer(serializers.Serializer):
     latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=True)
     longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=True)
     address = serializers.CharField(max_length=500, required=False, allow_blank=True, default='')
+
+    def to_internal_value(self, data):
+        """
+        Round lat/lng to 6 decimal places before DRF's strict
+        DecimalField validation so high-precision floats from
+        Google Maps / GPS don't cause a 400.
+        """
+        data = data.copy() if hasattr(data, 'copy') else dict(data)
+        for field in ('latitude', 'longitude'):
+            if field in data and data[field] is not None:
+                try:
+                    data[field] = str(round(float(data[field]), 6))
+                except (ValueError, TypeError):
+                    pass  # let DRF's normal validation handle bad input
+        return super().to_internal_value(data)

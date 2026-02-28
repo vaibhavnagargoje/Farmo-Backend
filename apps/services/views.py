@@ -61,7 +61,7 @@ class ServiceListView(generics.ListAPIView):
             try:
                 user_lat = float(lat)
                 user_lng = float(lng)
-                radius = float(distance_param) if distance_param else 50.0  # default 50km
+                radius = float(distance_param) if distance_param else 5.0  # default 5km
 
                 # Only include services that have location data
                 queryset = queryset.exclude(location_lat__isnull=True).exclude(location_lng__isnull=True)
