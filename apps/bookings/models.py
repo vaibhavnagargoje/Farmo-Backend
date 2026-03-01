@@ -89,6 +89,16 @@ class Booking(models.Model):
 
     # Financials (Snapshot Pattern)
     quantity = models.PositiveIntegerField(default=1, help_text="Number of Hours/Acres/Km")
+    price_unit = models.CharField(
+        max_length=10,
+        choices=[
+            ('HOUR', 'Per Hour'), ('DAY', 'Per Day'),
+            ('KM', 'Per Kilometer'), ('ACRE', 'Per Acre'),
+            ('FIXED', 'Fixed Price'),
+        ],
+        default='HOUR',
+        help_text="Unit type for pricing (Hour/Day/Km/Acre/Fixed)"
+    )
     unit_price = models.DecimalField(max_digits=10, decimal_places=2) 
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     
@@ -111,12 +121,20 @@ class Booking(models.Model):
         """Generate a daily-sequential quick order number: QO-YYYYMMDD-NNN"""
         today = timezone.now().date()
         today_str = today.strftime('%Y%m%d')
-        count = Booking.objects.filter(
-            booking_type=self.BookingType.INSTANT,
-            created_at__date=today,
-            order_number__isnull=False,
-        ).count()
-        return f"QO-{today_str}-{count + 1:03d}"
+        prefix = f"QO-{today_str}-"
+        
+        # Find the highest existing order number for today (robust against deletions)
+        last = Booking.objects.filter(
+            order_number__startswith=prefix,
+        ).order_by('-order_number').values_list('order_number', flat=True).first()
+        
+        if last:
+            try:
+                last_num = int(last.split('-')[-1])
+                return f"{prefix}{last_num + 1:03d}"
+            except (ValueError, IndexError):
+                pass
+        return f"{prefix}001"
 
     def save(self, *args, **kwargs):
         # Auto-generate Booking ID
@@ -152,6 +170,15 @@ class Booking(models.Model):
             self.total_amount = self.unit_price * self.quantity
             
         super().save(*args, **kwargs)
+        
+        # Cascade: when booking is cancelled or expired, expire all pending instant requests
+        if self.status in (self.Status.CANCELLED, self.Status.EXPIRED):
+            self.instant_requests.filter(
+                status='PENDING',
+            ).update(
+                status='EXPIRED',
+                responded_at=timezone.now(),
+            )
 
     def __str__(self):
         type_label = "⚡" if self.booking_type == self.BookingType.INSTANT else "📅"

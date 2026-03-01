@@ -7,7 +7,8 @@ from .views import (
     PartnerServiceListView,
     PartnerServiceDetailView,
     ServiceImageUploadView,
-    ServiceImageDeleteView
+    ServiceImageDeleteView,
+    PriceUnitListView,
 )
 
 app_name = 'services'
@@ -15,6 +16,7 @@ app_name = 'services'
 urlpatterns = [
     # Public Routes (Customers Browsing)
     path('categories/', CategoryListView.as_view(), name='category-list'),
+    path('price-units/', PriceUnitListView.as_view(), name='price-unit-list'),
     path('', ServiceListView.as_view(), name='service-list'),
     path('<int:id>/', ServiceDetailView.as_view(), name='service-detail'),
     

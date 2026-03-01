@@ -1,10 +1,13 @@
 # apps/bookings/serializers.py
 from rest_framework import serializers
 from django.utils import timezone
-from .models import Booking
+from django.db.models import Avg, FloatField, Value, F, ExpressionWrapper
+from django.db.models.functions import ACos, Cos, Radians, Sin
+from .models import Booking, InstantBookingRequest
 from services.serializers import ServiceListSerializer
-from services.models import Category
+from services.models import Category, Service
 from partners.serializers import PartnerProfileSerializer
+from partners.models import PartnerProfile
 from users.serializers import UserSerializer
 
 
@@ -22,7 +25,7 @@ class BookingListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'booking_id', 'order_number', 'booking_type', 'status', 'payment_status',
             'service_title', 'category_name', 'provider_name', 'customer_phone',
-            'scheduled_date', 'scheduled_time', 'total_amount', 'expires_at',
+            'scheduled_date', 'scheduled_time', 'quantity', 'price_unit', 'total_amount', 'expires_at',
             'broadcast_count', 'assigned_at', 'created_at'
         ]
 
@@ -54,7 +57,7 @@ class BookingDetailSerializer(serializers.ModelSerializer):
             'work_started_at', 'work_completed_at',
             'start_job_otp', 'end_job_otp',
             'address', 'lat', 'lng',
-            'quantity', 'unit_price', 'total_amount',
+            'quantity', 'price_unit', 'unit_price', 'total_amount',
             'note', 'cancellation_reason', 'cancelled_by',
             'created_at', 'updated_at'
         ]
@@ -187,3 +190,147 @@ class BookingCancelSerializer(serializers.Serializer):
             raise serializers.ValidationError("Cannot cancel a booking that is already in progress. Contact support.")
         
         return attrs
+
+
+class InstantBookingCreateSerializer(serializers.Serializer):
+    """
+    Serializer for creating an Instant (Quick) Booking.
+    Finds nearby providers, computes average price, creates broadcast requests.
+    """
+    category_id = serializers.IntegerField()
+    quantity = serializers.IntegerField(min_value=1)
+    price_unit = serializers.ChoiceField(choices=Service.PriceUnit.choices)
+    note = serializers.CharField(required=False, allow_blank=True, default="")
+    address = serializers.CharField()
+    lat = serializers.FloatField()
+    lng = serializers.FloatField()
+
+    def validate_lat(self, value):
+        """Coerce lat to 6 decimal places so it fits the model's DecimalField(max_digits=9)."""
+        return round(float(value), 6)
+
+    def validate_lng(self, value):
+        """Coerce lng to 6 decimal places so it fits the model's DecimalField(max_digits=9)."""
+        return round(float(value), 6)
+
+    def validate_category_id(self, value):
+        try:
+            category = Category.objects.get(id=value, is_active=True)
+        except Category.DoesNotExist:
+            raise serializers.ValidationError("Category not found or not active.")
+        if not category.instant_enabled:
+            raise serializers.ValidationError("Instant booking is not enabled for this category.")
+        return value
+
+    def validate(self, attrs):
+        """Check if user already has an active instant booking."""
+        user = self.context['request'].user
+        active_booking = Booking.objects.filter(
+            customer=user,
+            booking_type=Booking.BookingType.INSTANT,
+            status__in=[
+                Booking.Status.SEARCHING,
+                Booking.Status.CONFIRMED,
+                Booking.Status.IN_PROGRESS,
+            ],
+        ).first()
+        if active_booking:
+            raise serializers.ValidationError({
+                "active_booking_id": active_booking.booking_id,
+                "message": "You already have an active order. Cancel it or wait for it to expire.",
+            })
+        return attrs
+
+    def _find_nearby_services(self, category, user_lat, user_lng, radius_km, price_unit):
+        """
+        Find active services within radius using Haversine formula.
+        Returns queryset annotated with distance.
+        """
+        queryset = Service.objects.filter(
+            category=category,
+            status=Service.Status.ACTIVE,
+            is_available=True,
+            partner__is_available=True,
+            partner__is_verified=True,
+        ).exclude(
+            location_lat__isnull=True
+        ).exclude(
+            location_lng__isnull=True
+        )
+
+        if price_unit:
+            queryset = queryset.filter(price_unit=price_unit)
+
+        queryset = queryset.annotate(
+            distance=ExpressionWrapper(
+                Value(6371.0) * ACos(
+                    Cos(Radians(Value(float(user_lat), output_field=FloatField()))) *
+                    Cos(Radians(F('location_lat'))) *
+                    Cos(Radians(F('location_lng')) - Radians(Value(float(user_lng), output_field=FloatField()))) +
+                    Sin(Radians(Value(float(user_lat), output_field=FloatField()))) *
+                    Sin(Radians(F('location_lat')))
+                ),
+                output_field=FloatField()
+            )
+        ).filter(distance__lte=radius_km).order_by('distance')
+
+        return queryset
+
+    def create(self, validated_data):
+        user = self.context['request'].user
+        category = Category.objects.get(id=validated_data['category_id'])
+        user_lat = validated_data['lat']
+        user_lng = validated_data['lng']
+        price_unit = validated_data['price_unit']
+        quantity = validated_data['quantity']
+        radius_km = category.instant_search_radius_km
+
+        # Find nearby services with matching price_unit
+        nearby_services = self._find_nearby_services(
+            category, user_lat, user_lng, radius_km, price_unit
+        )
+
+        # Compute average price from nearby services, fallback to category.instant_price
+        avg_result = nearby_services.aggregate(avg_price=Avg('price'))
+        avg_price = avg_result['avg_price']
+        if avg_price is None:
+            avg_price = float(category.instant_price)
+        unit_price = round(float(avg_price), 2)
+
+        # Create the booking
+        booking = Booking.objects.create(
+            booking_type=Booking.BookingType.INSTANT,
+            customer=user,
+            category=category,
+            status=Booking.Status.SEARCHING,
+            address=validated_data['address'],
+            lat=user_lat,
+            lng=user_lng,
+            quantity=quantity,
+            price_unit=price_unit,
+            unit_price=unit_price,
+            total_amount=round(unit_price * quantity, 2),
+            note=validated_data.get('note', ''),
+        )
+
+        # Find distinct providers from nearby services and create broadcast requests
+        # Use distinct partners to avoid sending multiple requests to the same provider
+        seen_providers = set()
+        broadcast_count = 0
+        for svc in nearby_services.select_related('partner'):
+            if svc.partner_id not in seen_providers:
+                seen_providers.add(svc.partner_id)
+                InstantBookingRequest.objects.create(
+                    booking=booking,
+                    provider=svc.partner,
+                    broadcast_round=1,
+                    distance_km=round(svc.distance, 2) if svc.distance else None,
+                    response_deadline=booking.expires_at,
+                )
+                broadcast_count += 1
+
+        booking.broadcast_count = 1
+        booking.current_broadcast_radius = radius_km
+        booking.save(update_fields=['broadcast_count', 'current_broadcast_radius'])
+
+        return booking

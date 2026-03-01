@@ -8,11 +8,17 @@ from .views import (
     ProviderBookingDetailView,
     ProviderBookingActionView,
     ProviderBookingCancelView,
+    InstantBookingCreateView,
+    InstantBookingStatusView,
 )
 
 app_name = 'bookings'
 
 urlpatterns = [
+    # Instant Booking Routes (must be before <str:booking_id> catch-all)
+    path('instant/', InstantBookingCreateView.as_view(), name='instant-booking-create'),
+    path('instant/<str:booking_id>/status/', InstantBookingStatusView.as_view(), name='instant-booking-status'),
+
     # Customer Routes
     path('', CustomerBookingListView.as_view(), name='customer-booking-list'),
     path('<str:booking_id>/', CustomerBookingDetailView.as_view(), name='customer-booking-detail'),

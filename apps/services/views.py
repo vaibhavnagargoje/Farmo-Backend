@@ -218,6 +218,21 @@ class ServiceImageUploadView(APIView):
         }, status=status.HTTP_201_CREATED)
 
 
+class PriceUnitListView(APIView):
+    """
+    GET: Return all available price unit choices from the Service model.
+    This ensures frontend never hardcodes price units.
+    """
+    permission_classes = []  # Public
+
+    def get(self, request):
+        units = [
+            {"value": value, "label": label}
+            for value, label in Service.PriceUnit.choices
+        ]
+        return Response(units)
+
+
 class ServiceImageDeleteView(APIView):
     """
     DELETE: Remove an image from a service.

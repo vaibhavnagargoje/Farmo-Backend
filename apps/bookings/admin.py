@@ -86,8 +86,8 @@ class BookingAdmin(admin.ModelAdmin):
     @admin.display(description='Type')
     def booking_type_badge(self, obj):
         if obj.booking_type == Booking.BookingType.INSTANT:
-            return format_html('<span style="background:#f59e0b;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold;">⚡ INSTANT</span>')
-        return format_html('<span style="background:#3b82f6;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold;">📅 SCHEDULED</span>')
+            return format_html('<span style="background:#f59e0b;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold;">INSTANT</span>')
+        return format_html('<span style="background:#3b82f6;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold;">SCHEDULED</span>')
 
     @admin.display(description='Service / Category')
     def service_or_category(self, obj):

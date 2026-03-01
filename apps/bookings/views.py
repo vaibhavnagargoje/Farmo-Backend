@@ -9,7 +9,7 @@ from django.db import transaction
 from django.db.models import F
 import math
 
-from .models import Booking
+from .models import Booking, InstantBookingRequest
 from services.models import Service, Category
 from partners.models import PartnerProfile
 from .serializers import (
@@ -18,6 +18,7 @@ from .serializers import (
     BookingCreateSerializer,
     BookingStatusUpdateSerializer,
     BookingCancelSerializer,
+    InstantBookingCreateSerializer,
 )
 
 
@@ -217,5 +218,87 @@ class ProviderBookingCancelView(APIView):
             })
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# --- Instant Booking Views ---
+class InstantBookingCreateView(APIView):
+    """
+    POST: Create an instant (quick) booking.
+    Finds nearby providers, computes avg price, creates broadcast requests.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = InstantBookingCreateSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+        if serializer.is_valid():
+            booking = serializer.save()
+            nearby_count = booking.instant_requests.count()
+            return Response({
+                "message": f"Instant booking created. Searching {nearby_count} nearby providers...",
+                "booking": BookingDetailSerializer(booking, context={'request': request}).data,
+                "providers_notified": nearby_count,
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class InstantBookingStatusView(APIView):
+    """
+    GET: Poll the status of an instant booking.
+    Auto-expires if past expiry time.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, booking_id):
+        booking = get_object_or_404(
+            Booking,
+            booking_id=booking_id,
+            customer=request.user,
+            booking_type=Booking.BookingType.INSTANT,
+        )
+
+        # Auto-expire if past expiry and still searching
+        if booking.is_expired:
+            booking.status = Booking.Status.EXPIRED
+            booking.save(update_fields=['status'])
+            # Also expire all pending instant requests
+            booking.instant_requests.filter(
+                status=InstantBookingRequest.RequestStatus.PENDING
+            ).update(status=InstantBookingRequest.RequestStatus.EXPIRED)
+
+        data = {
+            "booking_id": booking.booking_id,
+            "order_number": booking.order_number,
+            "status": booking.status,
+            "booking_type": booking.booking_type,
+            "category_name": booking.category.name if booking.category else None,
+            "quantity": booking.quantity,
+            "price_unit": booking.price_unit,
+            "unit_price": str(booking.unit_price),
+            "total_amount": str(booking.total_amount),
+            "broadcast_count": booking.broadcast_count,
+            "current_broadcast_radius": str(booking.current_broadcast_radius) if booking.current_broadcast_radius else None,
+            "expires_at": booking.expires_at.isoformat() if booking.expires_at else None,
+            "assigned_at": booking.assigned_at.isoformat() if booking.assigned_at else None,
+            "created_at": booking.created_at.isoformat(),
+            "providers_notified": booking.instant_requests.count(),
+            "providers_declined": booking.instant_requests.filter(
+                status=InstantBookingRequest.RequestStatus.DECLINED
+            ).count(),
+        }
+
+        # Include provider info if confirmed
+        if booking.status == Booking.Status.CONFIRMED and booking.provider:
+            data["provider"] = {
+                "id": booking.provider.id,
+                "business_name": booking.provider.business_name,
+                "rating": str(booking.provider.rating),
+                "jobs_completed": booking.provider.jobs_completed,
+                "phone": booking.provider.user.phone_number,
+            }
+
+        return Response(data)
 
 
