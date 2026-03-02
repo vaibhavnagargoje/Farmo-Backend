@@ -6,10 +6,12 @@ from .models import Booking, InstantBookingRequest
 class InstantBookingRequestInline(admin.TabularInline):
     """
     Shows all provider requests for an instant booking inside the Booking form.
+    Status is editable so admin can accept a specific provider (triggers cascade).
     """
     model = InstantBookingRequest
     extra = 0
-    readonly_fields = ('provider', 'status', 'distance_km', 'notified_at', 'responded_at')
+    readonly_fields = ('provider', 'distance_km', 'notified_at', 'responded_at')
+    fields = ('provider', 'status', 'distance_km', 'notified_at', 'responded_at')
     can_delete = False
 
     def has_add_permission(self, request, obj=None):

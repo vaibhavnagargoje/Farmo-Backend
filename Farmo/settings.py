@@ -30,7 +30,7 @@ SECRET_KEY = 'django-insecure-b2k)@tgv^#2lmj(v^fv6_4v*%96$_3#uc*z2jc@is-1dg#qagf
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', ' https://e2b3-2402-8100-2d14-9c9d-ad27-6af9-f66b-3112.ngrok-free.app']
 
 
 # Application definition
@@ -98,9 +98,12 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:3002",
     "http://127.0.0.1:3000",
-    "https://9e96-2402-8100-2d00-e9bc-98b9-7a6b-15dc-ef98.ngrok-free.app"
 ]
 CORS_ALLOW_CREDENTIALS = True
+
+# In DEBUG, allow all origins so any ngrok URL works without manual updates
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
 
 
 ROOT_URLCONF = 'Farmo.urls'

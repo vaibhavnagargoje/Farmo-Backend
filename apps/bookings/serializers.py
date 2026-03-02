@@ -25,7 +25,8 @@ class BookingListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'booking_id', 'order_number', 'booking_type', 'status', 'payment_status',
             'service_title', 'category_name', 'provider_name', 'customer_phone',
-            'scheduled_date', 'scheduled_time', 'quantity', 'price_unit', 'total_amount', 'expires_at',
+            'scheduled_date', 'scheduled_time', 'quantity', 'price_unit', 'unit_price', 'total_amount', 'expires_at',
+            'address', 'lat', 'lng', 'note', 'cancellation_reason',
             'broadcast_count', 'assigned_at', 'created_at'
         ]
 
@@ -334,3 +335,50 @@ class InstantBookingCreateSerializer(serializers.Serializer):
         booking.save(update_fields=['broadcast_count', 'current_broadcast_radius'])
 
         return booking
+
+
+class InstantBookingRequestSerializer(serializers.ModelSerializer):
+    """
+    Serializer for showing pending InstantBookingRequests to providers.
+    Flattens booking details so the frontend has everything it needs.
+    """
+    booking_id = serializers.CharField(source='booking.booking_id', read_only=True)
+    booking_type = serializers.CharField(source='booking.booking_type', read_only=True)
+    booking_status = serializers.CharField(source='booking.status', read_only=True)
+    category_name = serializers.SerializerMethodField()
+    service_title = serializers.SerializerMethodField()
+    customer_phone = serializers.CharField(source='booking.customer.phone_number', read_only=True)
+    address = serializers.CharField(source='booking.address', read_only=True)
+    lat = serializers.DecimalField(source='booking.lat', max_digits=9, decimal_places=6, read_only=True)
+    lng = serializers.DecimalField(source='booking.lng', max_digits=9, decimal_places=6, read_only=True)
+    quantity = serializers.IntegerField(source='booking.quantity', read_only=True)
+    price_unit = serializers.CharField(source='booking.price_unit', read_only=True)
+    unit_price = serializers.DecimalField(source='booking.unit_price', max_digits=10, decimal_places=2, read_only=True)
+    total_amount = serializers.DecimalField(source='booking.total_amount', max_digits=10, decimal_places=2, read_only=True)
+    note = serializers.CharField(source='booking.note', read_only=True, default='')
+    expires_at = serializers.DateTimeField(source='booking.expires_at', read_only=True)
+    order_number = serializers.CharField(source='booking.order_number', read_only=True)
+    created_at = serializers.DateTimeField(source='booking.created_at', read_only=True)
+
+    class Meta:
+        model = InstantBookingRequest
+        fields = [
+            'id', 'booking_id', 'booking_type', 'booking_status', 'order_number',
+            'category_name', 'service_title', 'customer_phone',
+            'address', 'lat', 'lng',
+            'quantity', 'price_unit', 'unit_price', 'total_amount',
+            'note', 'expires_at', 'created_at',
+            'status', 'distance_km', 'notified_at', 'response_deadline',
+        ]
+
+    def get_category_name(self, obj):
+        if obj.booking.category:
+            return obj.booking.category.name
+        return None
+
+    def get_service_title(self, obj):
+        if obj.booking.service:
+            return obj.booking.service.title
+        if obj.booking.category:
+            return f"{obj.booking.category.name} (Instant)"
+        return "Unknown"

@@ -19,6 +19,7 @@ from .serializers import (
     BookingStatusUpdateSerializer,
     BookingCancelSerializer,
     InstantBookingCreateSerializer,
+    InstantBookingRequestSerializer,
 )
 
 
@@ -302,3 +303,138 @@ class InstantBookingStatusView(APIView):
         return Response(data)
 
 
+# --- Provider Instant Request Views ---
+class ProviderInstantRequestListView(generics.ListAPIView):
+    """
+    GET: List all pending instant booking requests for the logged-in provider.
+    Only shows requests where booking is still SEARCHING (not expired/cancelled).
+    """
+    serializer_class = InstantBookingRequestSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        if not hasattr(self.request.user, 'partner_profile'):
+            return InstantBookingRequest.objects.none()
+
+        partner = self.request.user.partner_profile
+
+        # Auto-expire requests whose booking has passed its expiry
+        now = timezone.now()
+        InstantBookingRequest.objects.filter(
+            provider=partner,
+            status=InstantBookingRequest.RequestStatus.PENDING,
+            booking__expires_at__lt=now,
+            booking__status=Booking.Status.SEARCHING,
+        ).update(status=InstantBookingRequest.RequestStatus.EXPIRED, responded_at=now)
+
+        return InstantBookingRequest.objects.filter(
+            provider=partner,
+            status=InstantBookingRequest.RequestStatus.PENDING,
+            booking__status=Booking.Status.SEARCHING,
+        ).select_related(
+            'booking', 'booking__customer', 'booking__category', 'booking__service'
+        ).order_by('distance_km', '-notified_at')
+
+
+class ProviderInstantRequestAcceptView(APIView):
+    """
+    POST: Provider accepts an instant booking request.
+    First-come-first-serve: uses select_for_update for atomicity.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        if not hasattr(request.user, 'partner_profile'):
+            return Response({"error": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
+
+        partner = request.user.partner_profile
+
+        with transaction.atomic():
+            # Lock the request row
+            try:
+                instant_req = InstantBookingRequest.objects.select_for_update().get(
+                    pk=pk,
+                    provider=partner,
+                )
+            except InstantBookingRequest.DoesNotExist:
+                return Response(
+                    {"error": "Request not found."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Check request is still pending
+            if instant_req.status != InstantBookingRequest.RequestStatus.PENDING:
+                return Response(
+                    {"error": "This request has already been responded to."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Lock and check the booking
+            booking = Booking.objects.select_for_update().get(pk=instant_req.booking_id)
+
+            if booking.status != Booking.Status.SEARCHING:
+                # Another provider already accepted or booking expired
+                instant_req.status = InstantBookingRequest.RequestStatus.EXPIRED
+                instant_req.responded_at = timezone.now()
+                instant_req.save(update_fields=['status', 'responded_at'])
+                return Response(
+                    {"error": "This booking is no longer available — another provider may have accepted it."},
+                    status=status.HTTP_409_CONFLICT
+                )
+
+            # Accept: assign provider to booking
+            booking.provider = partner
+            booking.status = Booking.Status.CONFIRMED
+            booking.assigned_at = timezone.now()
+            booking.save()  # This triggers OTP generation in model save()
+
+            # Mark this request as accepted
+            instant_req.status = InstantBookingRequest.RequestStatus.ACCEPTED
+            instant_req.responded_at = timezone.now()
+            instant_req.save(update_fields=['status', 'responded_at'])
+
+            # Expire all other pending requests for this booking
+            InstantBookingRequest.objects.filter(
+                booking=booking,
+                status=InstantBookingRequest.RequestStatus.PENDING,
+            ).exclude(pk=pk).update(
+                status=InstantBookingRequest.RequestStatus.EXPIRED,
+                responded_at=timezone.now(),
+            )
+
+        # Return full booking details
+        return Response({
+            "message": "Booking accepted successfully!",
+            "booking": BookingDetailSerializer(booking, context={'request': request}).data,
+        })
+
+
+class ProviderInstantRequestDeclineView(APIView):
+    """
+    POST: Provider declines an instant booking request.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        if not hasattr(request.user, 'partner_profile'):
+            return Response({"error": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
+
+        partner = request.user.partner_profile
+
+        instant_req = get_object_or_404(
+            InstantBookingRequest,
+            pk=pk,
+            provider=partner,
+        )
+
+        if instant_req.status != InstantBookingRequest.RequestStatus.PENDING:
+            return Response(
+                {"error": "This request has already been responded to."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        instant_req.status = InstantBookingRequest.RequestStatus.DECLINED
+        instant_req.responded_at = timezone.now()
+        instant_req.save(update_fields=['status', 'responded_at'])
+
+        return Response({"message": "Request declined."})

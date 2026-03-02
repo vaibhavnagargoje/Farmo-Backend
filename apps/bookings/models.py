@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from django.conf import settings
 from django.utils import timezone
 from services.models import Service, Category
@@ -221,6 +221,45 @@ class InstantBookingRequest(models.Model):
     class Meta:
         ordering = ['distance_km', 'notified_at']
         unique_together = ('booking', 'provider', 'broadcast_round')  # Allow same provider in different rounds
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Cache original status to detect transitions in save()
+        self._original_status = self.status
+
+    def save(self, *args, **kwargs):
+        transitioning_to_accepted = (
+            self._original_status != self.RequestStatus.ACCEPTED
+            and self.status == self.RequestStatus.ACCEPTED
+        )
+
+        if transitioning_to_accepted:
+            self.responded_at = self.responded_at or timezone.now()
+
+        super().save(*args, **kwargs)
+
+        # Cascade: when an instant request is accepted (e.g. via admin),
+        # assign provider to booking, confirm booking, expire other pings.
+        if transitioning_to_accepted:
+            with transaction.atomic():
+                booking = Booking.objects.select_for_update().get(pk=self.booking_id)
+                if booking.status == Booking.Status.SEARCHING:
+                    booking.provider = self.provider
+                    booking.status = Booking.Status.CONFIRMED
+                    booking.assigned_at = timezone.now()
+                    booking.save()
+
+                # Expire all other pending requests for this booking
+                InstantBookingRequest.objects.filter(
+                    booking_id=self.booking_id,
+                    status=self.RequestStatus.PENDING,
+                ).exclude(pk=self.pk).update(
+                    status=self.RequestStatus.EXPIRED,
+                    responded_at=timezone.now(),
+                )
+
+        # Update cached status after save
+        self._original_status = self.status
 
     def __str__(self):
         return f"{self.booking.booking_id} → {self.provider.business_name} [R{self.broadcast_round}:{self.status}]"
