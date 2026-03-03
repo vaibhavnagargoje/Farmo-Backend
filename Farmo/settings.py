@@ -11,9 +11,11 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+from dotenv import load_dotenv
 import os
 import sys
 
+load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -28,8 +30,7 @@ sys.path.insert(0, os.path.join(BASE_DIR, 'apps'))
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-b2k)@tgv^#2lmj(v^fv6_4v*%96$_3#uc*z2jc@is-1dg#qagf')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-DEUG = os.getenv('DEBUG', 'True') == 'True'
+DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
 
@@ -39,8 +40,6 @@ else:
     # Important: In production, explicitly whitelist your Vercel Domains
     CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
     CORS_ALLOW_CREDENTIALS = True
-
-
 
 
 
@@ -146,7 +145,6 @@ AUTH_USER_MODEL = 'users.User'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 if DEBUG:
-    
     DATABASES = {  
         'default': {  
             'ENGINE': 'django.db.backends.mysql',  
@@ -160,29 +158,19 @@ if DEBUG:
             }          
         }  
     }  
-
-#    DATABASES = {  
-#         'default': {  
-#             'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
-#             'NAME': os.getenv('DB_NAME', 'farmoDB'),
-#             'USER': os.getenv('DB_USER','postgres'),
-#             'PASSWORD': os.getenv('DB_PASSWORD',8806),
-#             'HOST': os.getenv('DB_HOST', '127.0.0.1'),
-#             'PORT': os.getenv('DB_PORT', '5432'),          
-#         }  
-#     }
-
+    print("Development Database Config:", DATABASES['default'])
 else:
     DATABASES = {  
         'default': {  
-            'ENGINE': os.getenv('DB_ENGINE',),
-            'NAME': os.getenv('DB_NAME',),
-            'USER': os.getenv('DB_USER',),
-            'PASSWORD': os.getenv('DB_PASSWORD',),
-            'HOST': os.getenv('DB_HOST',),
-            'PORT': os.getenv('DB_PORT', ),          
+            'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
+            'NAME': os.getenv('DB_NAME', 'farmoDB'),
+            'USER': os.getenv('DB_USER','postgres'),
+            'PASSWORD': os.getenv('DB_PASSWORD',8806),
+            'HOST': os.getenv('DB_HOST', '127.0.0.1'),
+            'PORT': os.getenv('DB_PORT', '5432'),          
         }  
-    } 
+    }
+    print("Production Database Config:", DATABASES['default'])
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
