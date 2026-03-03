@@ -5,13 +5,10 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import SendOTPSerializer, VerifyOTPSerializer, UserSerializer, ProfileUpdateSerializer, CustomerProfileSerializer
+from django.core.cache import cache
 import random
 
 User = get_user_model()
-
-# --- MOCK STORAGE ---
-# In production, use Redis or a Database Model to store OTPs with expiration.
-OTP_STORAGE = {} 
 
 class SendOTPView(APIView):
     """
@@ -28,8 +25,8 @@ class SendOTPView(APIView):
             # 1. Generate OTP
             otp = str(random.randint(1000, 9999))
             
-            # 2. Store OTP (In memory for now)
-            OTP_STORAGE[phone] = otp
+            # 2. Store OTP in database cache (shared across workers, 5 min expiry)
+            cache.set(f'otp_{phone}', otp, timeout=300)
             
             # 3. Send SMS (Mocked for existing code)
             print(f"--> SENT OTP {otp} to {phone}") 
@@ -55,7 +52,7 @@ class VerifyOTPView(APIView):
             incoming_otp = serializer.validated_data['otp']
             
             # 1. Check OTP
-            stored_otp = OTP_STORAGE.get(phone)
+            stored_otp = cache.get(f'otp_{phone}')
             
             if stored_otp and stored_otp == incoming_otp:
                 # OTP Matches!
@@ -70,7 +67,7 @@ class VerifyOTPView(APIView):
                     user.save()
 
                 # 3. Clear the used OTP
-                del OTP_STORAGE[phone]
+                cache.delete(f'otp_{phone}')
 
                 # 4. Generate JWT Tokens
                 refresh = RefreshToken.for_user(user)

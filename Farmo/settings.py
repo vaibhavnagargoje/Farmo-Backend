@@ -163,6 +163,15 @@ else:
         }  
     }
 
+# --- OTP Cache (shared across Gunicorn workers) ---
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'otp_cache_table',
+        'TIMEOUT': 300,  # 5 minutes
+    }
+}
+
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
