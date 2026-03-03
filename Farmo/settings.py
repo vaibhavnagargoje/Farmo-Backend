@@ -25,16 +25,27 @@ sys.path.insert(0, os.path.join(BASE_DIR, 'apps'))
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-b2k)@tgv^#2lmj(v^fv6_4v*%96$_3#uc*z2jc@is-1dg#qagf'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-b2k)@tgv^#2lmj(v^fv6_4v*%96$_3#uc*z2jc@is-1dg#qagf')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+DEUG = os.getenv('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', ' https://e2b3-2402-8100-2d14-9c9d-ad27-6af9-f66b-3112.ngrok-free.app']
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
+
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
+else:
+    # Important: In production, explicitly whitelist your Vercel Domains
+    CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
+    CORS_ALLOW_CREDENTIALS = True
+
+
+
+
 
 
 # Application definition
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -67,16 +78,21 @@ INSTALLED_APPS = [
     'locations',
 ]
 
-# Use Custom User Model
-AUTH_USER_MODEL = 'users.User'
 
 if DEBUG:
-    # Add django_browser_reload only in DEBUG mode
     INSTALLED_APPS += ["django_browser_reload"]
+
+
 
 TAILWIND_APP_NAME = 'theme'
 INTERNAL_IPS = ["127.0.0.1"]
-NPM_BIN_PATH = r"C:\Program Files\nodejs\npm.cmd"
+
+if DEBUG:
+    NPM_BIN_PATH = r"C:\Program Files\nodejs\npm.cmd"
+else:
+    NPM_BIN_PATH = r"/usr/bin/npm"
+
+
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
@@ -89,7 +105,6 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 if DEBUG:
-    # Add django_browser_reload middleware only in DEBUG mode
     MIDDLEWARE += [
         "django_browser_reload.middleware.BrowserReloadMiddleware",
     ]
@@ -125,6 +140,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'Farmo.wsgi.application'
 
+AUTH_USER_MODEL = 'users.User'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
@@ -145,29 +161,26 @@ if DEBUG:
         }  
     }  
 
-#     DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'chronical',
-#         'USER': 'postgres',
-#         'PASSWORD': '8806',
-#         'HOST': 'localhost',
-#         'PORT': '5432',
+#    DATABASES = {  
+#         'default': {  
+#             'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
+#             'NAME': os.getenv('DB_NAME', 'farmoDB'),
+#             'USER': os.getenv('DB_USER','postgres'),
+#             'PASSWORD': os.getenv('DB_PASSWORD',8806),
+#             'HOST': os.getenv('DB_HOST', '127.0.0.1'),
+#             'PORT': os.getenv('DB_PORT', '5432'),          
+#         }  
 #     }
-# }
 
 else:
     DATABASES = {  
         'default': {  
-            'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.mysql'),
-            'NAME': os.getenv('DB_NAME'),
-            'USER': os.getenv('DB_USER'),
-            'PASSWORD': os.getenv('DB_PASSWORD'),
-            'HOST': os.getenv('DB_HOST', '127.0.0.1'),
-            'PORT': os.getenv('DB_PORT', '3306'),
-            'OPTIONS': {
-                'init_command': "SET sql_mode='STRICT_TRANS_TABLES'"
-            }           
+            'ENGINE': os.getenv('DB_ENGINE',),
+            'NAME': os.getenv('DB_NAME',),
+            'USER': os.getenv('DB_USER',),
+            'PASSWORD': os.getenv('DB_PASSWORD',),
+            'HOST': os.getenv('DB_HOST',),
+            'PORT': os.getenv('DB_PORT', ),          
         }  
     } 
 
