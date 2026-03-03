@@ -108,16 +108,9 @@ if DEBUG:
         "django_browser_reload.middleware.BrowserReloadMiddleware",
     ]
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://localhost:3002",
-    "http://127.0.0.1:3000",
-]
-CORS_ALLOW_CREDENTIALS = True
 
-# In DEBUG, allow all origins so any ngrok URL works without manual updates
-if DEBUG:
-    CORS_ALLOW_ALL_ORIGINS = True
+
+
 
 
 ROOT_URLCONF = 'Farmo.urls'
@@ -158,7 +151,6 @@ if DEBUG:
             }          
         }  
     }  
-    print("Development Database Config:", DATABASES['default'])
 else:
     DATABASES = {  
         'default': {  
@@ -170,7 +162,6 @@ else:
             'PORT': os.getenv('DB_PORT', '5432'),          
         }  
     }
-    print("Production Database Config:", DATABASES['default'])
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
