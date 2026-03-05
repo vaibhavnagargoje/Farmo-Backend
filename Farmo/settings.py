@@ -32,10 +32,14 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-b2k)@tgv^#2lmj(v^fv6_4v*%9
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost,api.farmo.in').split(',')
 
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
+    CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
+    CORS_ALLOW_CREDENTIALS = True
+
+
 else:
     # Important: In production, explicitly whitelist your Vercel Domains
     CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
@@ -140,17 +144,15 @@ AUTH_USER_MODEL = 'users.User'
 if DEBUG:
     DATABASES = {  
         'default': {  
-            'ENGINE': 'django.db.backends.mysql',  
-            'NAME': 'farmo',  
-            'USER': 'root',  
-            'PASSWORD': '8806',  
-            'HOST': '127.0.0.1',  
-            'PORT': '3306',  
-            'OPTIONS': {  
-                'init_command': "SET sql_mode='STRICT_TRANS_TABLES'"  
-            }          
+            'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
+            'NAME': os.getenv('DB_NAME', 'farmoDB'),
+            'USER': os.getenv('DB_USER','postgres'),
+            'PASSWORD': os.getenv('DB_PASSWORD',8806),
+            'HOST': os.getenv('DB_HOST', '127.0.0.1'),
+            'PORT': os.getenv('DB_PORT', '5432'),          
         }  
-    }  
+    }
+
 else:
     DATABASES = {  
         'default': {  
