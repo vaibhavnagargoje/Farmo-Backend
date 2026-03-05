@@ -1,7 +1,7 @@
 # apps/bookings/serializers.py
 from rest_framework import serializers
 from django.utils import timezone
-from django.db.models import Avg, FloatField, Value, F, ExpressionWrapper
+from django.db.models import FloatField, Value, F, ExpressionWrapper
 from django.db.models.functions import ACos, Cos, Radians, Sin
 from .models import Booking, InstantBookingRequest
 from services.serializers import ServiceListSerializer
@@ -200,7 +200,6 @@ class InstantBookingCreateSerializer(serializers.Serializer):
     """
     category_id = serializers.IntegerField()
     quantity = serializers.IntegerField(min_value=1)
-    price_unit = serializers.ChoiceField(choices=Service.PriceUnit.choices)
     note = serializers.CharField(required=False, allow_blank=True, default="")
     address = serializers.CharField()
     lat = serializers.FloatField()
@@ -242,7 +241,7 @@ class InstantBookingCreateSerializer(serializers.Serializer):
             })
         return attrs
 
-    def _find_nearby_services(self, category, user_lat, user_lng, radius_km, price_unit):
+    def _find_nearby_services(self, category, user_lat, user_lng, radius_km):
         """
         Find active services within radius using Haversine formula.
         Returns queryset annotated with distance.
@@ -258,9 +257,6 @@ class InstantBookingCreateSerializer(serializers.Serializer):
         ).exclude(
             location_lng__isnull=True
         )
-
-        if price_unit:
-            queryset = queryset.filter(price_unit=price_unit)
 
         queryset = queryset.annotate(
             distance=ExpressionWrapper(
@@ -282,21 +278,21 @@ class InstantBookingCreateSerializer(serializers.Serializer):
         category = Category.objects.get(id=validated_data['category_id'])
         user_lat = validated_data['lat']
         user_lng = validated_data['lng']
-        price_unit = validated_data['price_unit']
         quantity = validated_data['quantity']
         radius_km = category.instant_search_radius_km
 
-        # Find nearby services with matching price_unit
-        nearby_services = self._find_nearby_services(
-            category, user_lat, user_lng, radius_km, price_unit
-        )
+        # Use admin-set instant price from the category
+        unit_price = round(float(category.instant_price), 2)
+        if unit_price <= 0:
+            raise serializers.ValidationError(
+                "Instant booking price is not configured for this category."
+            )
+        price_unit = category.instant_price_unit
 
-        # Compute average price from nearby services, fallback to category.instant_price
-        avg_result = nearby_services.aggregate(avg_price=Avg('price'))
-        avg_price = avg_result['avg_price']
-        if avg_price is None:
-            avg_price = float(category.instant_price)
-        unit_price = round(float(avg_price), 2)
+        # Find nearby services for provider broadcast
+        nearby_services = self._find_nearby_services(
+            category, user_lat, user_lng, radius_km
+        )
 
         # Create the booking
         booking = Booking.objects.create(

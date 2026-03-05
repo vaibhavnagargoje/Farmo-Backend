@@ -28,26 +28,23 @@ class PartnerStatusView(APIView):
 
     def get(self, request):
         user = request.user
+        profile = getattr(user, 'customer_profile', None)
+        user_info = {
+            "full_name": profile.full_name if profile else "",
+            "phone_number": user.phone_number,
+        }
         try:
             partner = user.partner_profile
             return Response({
                 "is_partner": True,
                 "partner": PartnerProfileSerializer(partner).data,
-                "user": {
-                    "first_name": user.first_name,
-                    "last_name": user.last_name,
-                    "phone_number": user.phone_number,
-                }
+                "user": user_info
             })
         except PartnerProfile.DoesNotExist:
             return Response({
                 "is_partner": False,
                 "partner": None,
-                "user": {
-                    "first_name": user.first_name,
-                    "last_name": user.last_name,
-                    "phone_number": user.phone_number,
-                }
+                "user": user_info
             })
 
 

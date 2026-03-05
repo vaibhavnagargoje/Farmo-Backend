@@ -88,7 +88,7 @@ class VerifyOTPView(APIView):
 class ProfileUpdateView(APIView):
     """
     Update basic profile fields after first login.
-    Body: { "first_name": "Rahul", "last_name": "Kumar", "full_name": "Rahul Kumar", "village": "Rampur" }
+    Body: { "full_name": "Rahul Kumar", "user_address": "Rampur" }
     """
     permission_classes = [IsAuthenticated]
 
@@ -123,13 +123,6 @@ class ProfileUpdateView(APIView):
 
         user = request.user
         data = serializer.validated_data
-
-        # Update User fields
-        if "first_name" in data:
-            user.first_name = data.get("first_name", user.first_name)
-        if "last_name" in data:
-            user.last_name = data.get("last_name", user.last_name)
-        user.save()
 
         # Update CustomerProfile (if exists)
         profile = getattr(user, "customer_profile", None)

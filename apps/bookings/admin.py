@@ -43,7 +43,6 @@ class BookingAdmin(admin.ModelAdmin):
     search_fields = (
         'booking_id', 
         'customer__phone_number', 
-        'customer__first_name', 
         'provider__business_name', 
         'service__title',
         'category__name'
