@@ -88,14 +88,16 @@ class VerifyOTPView(APIView):
 class ProfileUpdateView(APIView):
     """
     Update basic profile fields after first login.
-    Body: { "full_name": "Rahul Kumar", "user_address": "Rampur" }
+    Body: { "full_name": "Rahul Kumar" }
+    Location data is managed separately via /locations/user-location/ endpoint.
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        """Get customer profile including location data."""
+        """Get customer profile and location data."""
         user = request.user
         profile = getattr(user, "customer_profile", None)
+        loc = getattr(user, "location", None)
         
         response_data = {
             "user": UserSerializer(user).data,
@@ -103,16 +105,27 @@ class ProfileUpdateView(APIView):
         }
         
         if profile:
-            response_data["profile"] = {
+            profile_data = {
                 "full_name": profile.full_name,
-                "user_address": profile.user_address,
-                "latitude": str(profile.latitude) if profile.latitude else None,
-                "longitude": str(profile.longitude) if profile.longitude else None,
-                "state": profile.state_id,
-                "district": profile.district_id,
-                "tahsil": profile.tahsil_id,
-                "village": profile.village_id,
             }
+            # Include location from UserLocation model
+            if loc:
+                profile_data["user_address"] = loc.address or None
+                profile_data["latitude"] = str(loc.latitude) if loc.latitude else None
+                profile_data["longitude"] = str(loc.longitude) if loc.longitude else None
+                profile_data["state"] = loc.state_id
+                profile_data["district"] = loc.district_id
+                profile_data["tahsil"] = loc.tahsil_id
+                profile_data["village"] = loc.village_id
+            else:
+                profile_data["user_address"] = None
+                profile_data["latitude"] = None
+                profile_data["longitude"] = None
+                profile_data["state"] = None
+                profile_data["district"] = None
+                profile_data["tahsil"] = None
+                profile_data["village"] = None
+            response_data["profile"] = profile_data
         
         return Response(response_data, status=status.HTTP_200_OK)
 
@@ -124,38 +137,26 @@ class ProfileUpdateView(APIView):
         user = request.user
         data = serializer.validated_data
 
-        # Update CustomerProfile (if exists)
+        # Update CustomerProfile (only full_name now)
         profile = getattr(user, "customer_profile", None)
         if profile:
             if "full_name" in data:
                 profile.full_name = data.get("full_name", profile.full_name)
-            if "user_address" in data:
-                profile.user_address = data.get("user_address", profile.user_address)
-            if "latitude" in data:
-                profile.latitude = data.get("latitude")
-            if "longitude" in data:
-                profile.longitude = data.get("longitude")
-            if "state" in data:
-                profile.state_id = data.get("state")
-            if "district" in data:
-                profile.district_id = data.get("district")
-            if "tahsil" in data:
-                profile.tahsil_id = data.get("tahsil")
-            if "village" in data:
-                profile.village_id = data.get("village")
             profile.save()
 
+        # Build response with location from UserLocation
+        loc = getattr(user, "location", None)
         profile_data = None
         if profile:
             profile_data = {
                 "full_name": profile.full_name,
-                "user_address": profile.user_address,
-                "latitude": str(profile.latitude) if profile.latitude else None,
-                "longitude": str(profile.longitude) if profile.longitude else None,
-                "state": profile.state_id,
-                "district": profile.district_id,
-                "tahsil": profile.tahsil_id,
-                "village": profile.village_id,
+                "user_address": loc.address if loc else None,
+                "latitude": str(loc.latitude) if loc and loc.latitude else None,
+                "longitude": str(loc.longitude) if loc and loc.longitude else None,
+                "state": loc.state_id if loc else None,
+                "district": loc.district_id if loc else None,
+                "tahsil": loc.tahsil_id if loc else None,
+                "village": loc.village_id if loc else None,
             }
 
         return Response({
@@ -163,4 +164,3 @@ class ProfileUpdateView(APIView):
             "user": UserSerializer(user).data,
             "profile": profile_data
         }, status=status.HTTP_200_OK)
-

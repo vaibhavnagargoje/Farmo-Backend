@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 
-from .models import State, District, Tahsil,Village
+from .models import State, District, Tahsil, Village, UserLocation
 from .serializers import (
     StateSerializer,
     DistrictSerializer,
@@ -62,7 +62,7 @@ class VillageListView(APIView):
 
 class UserLocationView(APIView):
     """
-    Manage the authenticated user's saved location on CustomerProfile.
+    Manage the authenticated user's saved location via UserLocation model.
     GET  – return saved lat/lng/address
     POST – update lat/lng/address
     """
@@ -70,9 +70,9 @@ class UserLocationView(APIView):
 
     def get(self, request):
         """Return the user's saved location."""
-        profile = getattr(request.user, "customer_profile", None)
+        loc = getattr(request.user, "location", None)
 
-        if not profile or not profile.latitude or not profile.longitude:
+        if not loc or not loc.latitude or not loc.longitude:
             return Response({
                 "has_location": False,
                 "location": None
@@ -81,9 +81,9 @@ class UserLocationView(APIView):
         return Response({
             "has_location": True,
             "location": {
-                "latitude": str(profile.latitude),
-                "longitude": str(profile.longitude),
-                "address": profile.user_address or "",
+                "latitude": str(loc.latitude),
+                "longitude": str(loc.longitude),
+                "address": loc.address or "",
             }
         }, status=status.HTTP_200_OK)
 
@@ -94,23 +94,20 @@ class UserLocationView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         data = serializer.validated_data
-        profile = getattr(request.user, "customer_profile", None)
 
-        # Auto-create CustomerProfile if it doesn't exist yet
-        if not profile:
-            from apps.users.models import CustomerProfile
-            profile = CustomerProfile.objects.create(user=request.user)
+        # Get or create UserLocation for this user
+        loc, _created = UserLocation.objects.get_or_create(user=request.user)
 
-        profile.latitude = data["latitude"]
-        profile.longitude = data["longitude"]
-        profile.user_address = data.get("address", "")
-        profile.save()
+        loc.latitude = data["latitude"]
+        loc.longitude = data["longitude"]
+        loc.address = data.get("address", "")
+        loc.save()
 
         return Response({
             "message": "Location updated successfully",
             "location": {
-                "latitude": str(profile.latitude),
-                "longitude": str(profile.longitude),
-                "address": profile.user_address or "",
+                "latitude": str(loc.latitude),
+                "longitude": str(loc.longitude),
+                "address": loc.address or "",
             }
         }, status=status.HTTP_200_OK)

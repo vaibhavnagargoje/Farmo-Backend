@@ -59,47 +59,13 @@ class User(AbstractUser):
 class CustomerProfile(models.Model):
     """
     Specific details for the 'Seeker' (User who needs labor/machines).
+    Location data is now stored in locations.UserLocation (shared by all roles).
     """
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='customer_profile')
     
     # Basic Profile
     full_name = models.CharField(max_length=255, blank=True, default="") 
     profile_picture = models.ImageField(upload_to='customers/avatars/', blank=True, null=True)
-    
-    # Location – lat/lng/address stored directly on profile
-    user_address = models.TextField(blank=True, null=True)
-    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-
-    # Optional location hierarchy (State > District > Tahsil)
-    state = models.ForeignKey(
-        'locations.State',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='customer_profiles',
-    )
-    district = models.ForeignKey(
-        'locations.District',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='customer_profiles',
-    )
-    tahsil = models.ForeignKey(
-        'locations.Tahsil',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='customer_profiles',
-    )
-    village = models.ForeignKey(
-        'locations.Village',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='customer_profiles',
-    )
 
     def __str__(self):
         return f"Customer: {self.full_name}"

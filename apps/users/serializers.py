@@ -41,27 +41,13 @@ class VerifyOTPSerializer(serializers.Serializer):
 class ProfileUpdateSerializer(serializers.Serializer):
     """
     Updates basic user profile data after first login.
+    Location data is handled separately via the locations app (UserLocation).
     """
     full_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
-    user_address = serializers.CharField(max_length=500, required=False, allow_blank=True)
-    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
-    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
-    # Optional location hierarchy IDs
-    state = serializers.IntegerField(required=False, allow_null=True)
-    district = serializers.IntegerField(required=False, allow_null=True)
-    tahsil = serializers.IntegerField(required=False, allow_null=True)
-    village = serializers.IntegerField(required=False, allow_null=True)
 
 
 class CustomerProfileSerializer(serializers.Serializer):
     """
-    Serializer for customer profile data.
+    Serializer for customer profile data (without location — that's in UserLocation).
     """
     full_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
-    user_address = serializers.CharField(max_length=500, required=False, allow_blank=True)
-    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
-    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
-    state = serializers.IntegerField(required=False, allow_null=True)
-    district = serializers.IntegerField(required=False, allow_null=True)
-    tahsil = serializers.IntegerField(required=False, allow_null=True)
-    village = serializers.IntegerField(required=False, allow_null=True)
