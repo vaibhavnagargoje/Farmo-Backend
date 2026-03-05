@@ -113,18 +113,10 @@ class ProfileUpdateView(APIView):
                 profile_data["user_address"] = loc.address or None
                 profile_data["latitude"] = str(loc.latitude) if loc.latitude else None
                 profile_data["longitude"] = str(loc.longitude) if loc.longitude else None
-                profile_data["state"] = loc.state_id
-                profile_data["district"] = loc.district_id
-                profile_data["tahsil"] = loc.tahsil_id
-                profile_data["village"] = loc.village_id
             else:
                 profile_data["user_address"] = None
                 profile_data["latitude"] = None
                 profile_data["longitude"] = None
-                profile_data["state"] = None
-                profile_data["district"] = None
-                profile_data["tahsil"] = None
-                profile_data["village"] = None
             response_data["profile"] = profile_data
         
         return Response(response_data, status=status.HTTP_200_OK)
@@ -153,10 +145,6 @@ class ProfileUpdateView(APIView):
                 "user_address": loc.address if loc else None,
                 "latitude": str(loc.latitude) if loc and loc.latitude else None,
                 "longitude": str(loc.longitude) if loc and loc.longitude else None,
-                "state": loc.state_id if loc else None,
-                "district": loc.district_id if loc else None,
-                "tahsil": loc.tahsil_id if loc else None,
-                "village": loc.village_id if loc else None,
             }
 
         return Response({
