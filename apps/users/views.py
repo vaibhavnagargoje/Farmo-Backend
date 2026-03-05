@@ -96,8 +96,8 @@ class ProfileUpdateView(APIView):
     def get(self, request):
         """Get customer profile and location data."""
         user = request.user
-        profile = getattr(user, "customer_profile", None)
-        loc = getattr(user, "location", None)
+        profile = user.customer_profile if hasattr(user, "customer_profile") else None
+        loc = user.location if hasattr(user, "location") else None
         
         response_data = {
             "user": UserSerializer(user).data,
@@ -138,14 +138,14 @@ class ProfileUpdateView(APIView):
         data = serializer.validated_data
 
         # Update CustomerProfile (only full_name now)
-        profile = getattr(user, "customer_profile", None)
+        profile = user.customer_profile if hasattr(user, "customer_profile") else None
         if profile:
             if "full_name" in data:
                 profile.full_name = data.get("full_name", profile.full_name)
             profile.save()
 
         # Build response with location from UserLocation
-        loc = getattr(user, "location", None)
+        loc = user.location if hasattr(user, "location") else None
         profile_data = None
         if profile:
             profile_data = {
