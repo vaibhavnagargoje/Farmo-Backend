@@ -230,7 +230,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 REST_FRAMEWORK = {
-    'EXCEPTION_HANDLER': 'farmo.exceptions.custom_exception_handler',
+    'EXCEPTION_HANDLER': 'Farmo.exceptions.custom_exception_handler',
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
