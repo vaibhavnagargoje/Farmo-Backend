@@ -44,7 +44,7 @@ class PartnerProfile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.business_name} [{self.partner_type}]"
+        return f"{self.user.phone_number} [{self.partner_type}]"
 
 
 # --- Specific Details based on Type ---
@@ -64,7 +64,7 @@ class LaborDetails(models.Model):
     skills = models.TextField(help_text="Comma separated: Mason, Helper, Harvester") 
 
     def __str__(self):
-        return f"Labor Details: {self.partner.business_name}"
+        return f"Labor Details: {self.partner.user.phone_number}"
 
 
 class MachineryDetails(models.Model):
@@ -79,7 +79,7 @@ class MachineryDetails(models.Model):
     fleet_size = models.IntegerField(default=1, help_text="How many machines do they own?")
     
     def __str__(self):
-        return f"Machinery Owner: {self.partner.business_name}"
+        return f"Machinery Owner: {self.partner.user.phone_number}"
 
 
 class TransportDetails(models.Model):
@@ -96,4 +96,4 @@ class TransportDetails(models.Model):
     is_intercity_available = models.BooleanField(default=False, help_text="Can go to other cities?")
 
     def __str__(self):
-        return f"Transporter: {self.partner.business_name}"
+        return f"Transporter: {self.partner.user.phone_number}"

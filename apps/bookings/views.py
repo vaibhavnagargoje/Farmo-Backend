@@ -294,7 +294,7 @@ class InstantBookingStatusView(APIView):
         if booking.status == Booking.Status.CONFIRMED and booking.provider:
             data["provider"] = {
                 "id": booking.provider.id,
-                "business_name": booking.provider.business_name,
+                "full_name": getattr(booking.provider.user.customer_profile, 'full_name', '') if hasattr(booking.provider.user, 'customer_profile') else '',
                 "rating": str(booking.provider.rating),
                 "jobs_completed": booking.provider.jobs_completed,
                 "phone": booking.provider.user.phone_number,

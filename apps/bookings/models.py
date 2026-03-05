@@ -262,4 +262,4 @@ class InstantBookingRequest(models.Model):
         self._original_status = self.status
 
     def __str__(self):
-        return f"{self.booking.booking_id} → {self.provider.business_name} [R{self.broadcast_round}:{self.status}]"
+        return f"{self.booking.booking_id} → {self.provider.user.phone_number} [R{self.broadcast_round}:{self.status}]"

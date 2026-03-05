@@ -74,7 +74,7 @@ class Service(models.Model):
     category = models.ForeignKey(Category, on_delete=models.PROTECT)
     
     title = models.CharField(max_length=255)
-    description = models.TextField()
+    description = models.TextField(blank=True)
     
     # Pricing
     price = models.DecimalField(max_digits=10, decimal_places=2)
@@ -102,7 +102,7 @@ class Service(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.title} - {self.partner.business_name}"
+        return f"{self.title} - {self.partner.user.phone_number}"
 
 class ServiceImage(models.Model):
     """

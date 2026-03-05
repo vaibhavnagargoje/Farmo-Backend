@@ -43,7 +43,7 @@ class BookingAdmin(admin.ModelAdmin):
     search_fields = (
         'booking_id', 
         'customer__phone_number', 
-        'provider__business_name', 
+        'provider__user__phone_number', 
         'service__title',
         'category__name'
     )
@@ -103,5 +103,5 @@ class BookingAdmin(admin.ModelAdmin):
 class InstantBookingRequestAdmin(admin.ModelAdmin):
     list_display = ('booking', 'provider', 'status', 'distance_km', 'notified_at', 'responded_at')
     list_filter = ('status',)
-    search_fields = ('booking__booking_id', 'provider__business_name')
+    search_fields = ('booking__booking_id', 'provider__user__phone_number')
     readonly_fields = ('booking', 'provider', 'notified_at')

@@ -16,7 +16,7 @@ class BookingListSerializer(serializers.ModelSerializer):
     Lightweight serializer for listing bookings.
     """
     service_title = serializers.SerializerMethodField()
-    provider_name = serializers.CharField(source='provider.business_name', read_only=True, default=None)
+    provider_name = serializers.CharField(source='provider.user.customer_profile.full_name', read_only=True, default=None)
     customer_phone = serializers.CharField(source='customer.phone_number', read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True, default=None)
 

@@ -29,7 +29,7 @@ class ServiceListSerializer(serializers.ModelSerializer):
     Lightweight serializer for listing services (e.g., search results).
     """
     category_name = serializers.CharField(source='category.name', read_only=True)
-    partner_name = serializers.CharField(source='partner.business_name', read_only=True)
+    partner_name = serializers.CharField(source='partner.user.customer_profile.full_name', read_only=True, default='')
     partner_rating = serializers.DecimalField(source='partner.rating', max_digits=3, decimal_places=2, read_only=True)
     thumbnail = serializers.SerializerMethodField()
 

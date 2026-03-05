@@ -24,14 +24,21 @@ class PartnerStatusView(APIView):
     Used by frontend onboarding page to decide flow.
     """
     permission_classes = [IsAuthenticated]
-    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
         profile = getattr(user, 'customer_profile', None)
+
+        # Fetch existing locations for this user
+        locations = []
+        loc = getattr(user, 'location', None)
+        if loc and loc.address:
+            locations.append({"address": loc.address})
+
         user_info = {
             "full_name": profile.full_name if profile else "",
             "phone_number": user.phone_number,
+            "locations": locations,
         }
         try:
             partner = user.partner_profile
@@ -148,7 +155,6 @@ class PartnerDashboardView(APIView):
         ).aggregate(total=Sum('total_amount'))['total'] or 0
         
         return Response({
-            "business_name": partner.business_name,
             "is_verified": partner.is_verified,
             "rating": str(partner.rating),
             "stats": {

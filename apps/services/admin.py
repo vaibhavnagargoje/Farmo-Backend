@@ -41,7 +41,7 @@ class ServiceAdmin(admin.ModelAdmin):
         'is_available'
     )
     list_filter = ('status', 'is_available', 'category', 'price_unit')
-    search_fields = ('title', 'partner__business_name')
+    search_fields = ('title', 'partner__user__phone_number')
     readonly_fields = ('created_at', 'updated_at')
     
     # This puts the image uploader inside the Service form

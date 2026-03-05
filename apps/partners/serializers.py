@@ -28,11 +28,12 @@ class PartnerProfileSerializer(serializers.ModelSerializer):
     Read-only serializer to display Partner info (e.g., on a Service listing).
     """
     user_phone = serializers.CharField(source='user.phone_number', read_only=True)
+    full_name = serializers.CharField(source='user.customer_profile.full_name', read_only=True, default='')
     
     class Meta:
         model = PartnerProfile
         fields = [
-            'id', 'user', 'user_phone', 'partner_type', 'business_name', 'about',
+            'id', 'user', 'user_phone', 'full_name', 'partner_type', 'about',
             'is_verified', 'is_kyc_submitted', 'is_available',
             'rating', 'jobs_completed', 'created_at'
         ]
@@ -51,7 +52,7 @@ class PartnerRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = PartnerProfile
         fields = [
-            'partner_type', 'business_name', 'about',
+            'partner_type', 'about',
             'aadhar_card_front', 'aadhar_card_back', 'pan_card',
             'labor_details', 'machinery_details', 'transport_details'
         ]
@@ -101,6 +102,6 @@ class PartnerProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = PartnerProfile
         fields = [
-            'business_name', 'about',
+            'about',
             'is_available', 'aadhar_card_front', 'aadhar_card_back', 'pan_card', 'is_kyc_submitted'
         ]

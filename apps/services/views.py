@@ -36,7 +36,7 @@ class ServiceListView(generics.ListAPIView):
     serializer_class = ServiceListSerializer
     permission_classes = []  # Public
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['title', 'description', 'partner__business_name']
+    search_fields = ['title', 'description', 'partner__user__phone_number']
     ordering_fields = ['price', 'created_at', 'partner__rating']
     ordering = ['-created_at']
 
