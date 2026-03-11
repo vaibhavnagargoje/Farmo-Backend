@@ -90,9 +90,8 @@ class Service(models.Model):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
     is_available = models.BooleanField(default=True) # "Currently Busy" switch
     
-    # Geolocation
-    location_lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-    location_lng = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    # Geolocation — lat/lng comes from partner's UserLocation
+    # (removed location_lat, location_lng — single source of truth is locations.UserLocation)
     service_radius_km = models.PositiveIntegerField(default=10)
 
     # Technical Specs

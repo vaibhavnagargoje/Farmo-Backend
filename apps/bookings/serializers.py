@@ -244,6 +244,7 @@ class InstantBookingCreateSerializer(serializers.Serializer):
     def _find_nearby_services(self, category, user_lat, user_lng, radius_km):
         """
         Find active services within radius using Haversine formula.
+        Uses partner's UserLocation for coordinates.
         Returns queryset annotated with distance.
         """
         queryset = Service.objects.filter(
@@ -253,19 +254,21 @@ class InstantBookingCreateSerializer(serializers.Serializer):
             partner__is_available=True,
             partner__is_verified=True,
         ).exclude(
-            location_lat__isnull=True
+            partner__user__location__isnull=True
         ).exclude(
-            location_lng__isnull=True
+            partner__user__location__latitude__isnull=True
+        ).exclude(
+            partner__user__location__longitude__isnull=True
         )
 
         queryset = queryset.annotate(
             distance=ExpressionWrapper(
                 Value(6371.0) * ACos(
                     Cos(Radians(Value(float(user_lat), output_field=FloatField()))) *
-                    Cos(Radians(F('location_lat'))) *
-                    Cos(Radians(F('location_lng')) - Radians(Value(float(user_lng), output_field=FloatField()))) +
+                    Cos(Radians(F('partner__user__location__latitude'))) *
+                    Cos(Radians(F('partner__user__location__longitude')) - Radians(Value(float(user_lng), output_field=FloatField()))) +
                     Sin(Radians(Value(float(user_lat), output_field=FloatField()))) *
-                    Sin(Radians(F('location_lat')))
+                    Sin(Radians(F('partner__user__location__latitude')))
                 ),
                 output_field=FloatField()
             )

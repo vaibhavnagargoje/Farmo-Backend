@@ -32,13 +32,14 @@ class ServiceListSerializer(serializers.ModelSerializer):
     partner_name = serializers.CharField(source='partner.user.customer_profile.full_name', read_only=True, default='')
     partner_rating = serializers.DecimalField(source='partner.rating', max_digits=3, decimal_places=2, read_only=True)
     thumbnail = serializers.SerializerMethodField()
+    partner_location = serializers.SerializerMethodField()
 
     class Meta:
         model = Service
         fields = [
             'id', 'title', 'price', 'price_unit', 'category_name',
             'partner_name', 'partner_rating', 'is_available', 'thumbnail',
-            'location_lat', 'location_lng', 'service_radius_km'
+            'partner_location', 'service_radius_km'
         ]
 
     def get_thumbnail(self, obj):
@@ -49,6 +50,16 @@ class ServiceListSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(thumbnail.image.url)
         return None
 
+    def get_partner_location(self, obj):
+        loc = getattr(obj.partner.user, 'location', None)
+        if loc and loc.latitude and loc.longitude:
+            return {
+                'latitude': str(loc.latitude),
+                'longitude': str(loc.longitude),
+                'address': loc.address or '',
+            }
+        return None
+
 
 class ServiceDetailSerializer(serializers.ModelSerializer):
     """
@@ -57,15 +68,26 @@ class ServiceDetailSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
     partner = PartnerProfileSerializer(read_only=True)
     images = ServiceImageSerializer(many=True, read_only=True)
+    partner_location = serializers.SerializerMethodField()
 
     class Meta:
         model = Service
         fields = [
             'id', 'title', 'description', 'price', 'price_unit', 'min_order_qty',
             'category', 'partner', 'status', 'is_available',
-            'location_lat', 'location_lng', 'service_radius_km',
+            'partner_location', 'service_radius_km',
             'specifications', 'images', 'created_at', 'updated_at'
         ]
+
+    def get_partner_location(self, obj):
+        loc = getattr(obj.partner.user, 'location', None)
+        if loc and loc.latitude and loc.longitude:
+            return {
+                'latitude': str(loc.latitude),
+                'longitude': str(loc.longitude),
+                'address': loc.address or '',
+            }
+        return None
 
 
 class ServiceCreateSerializer(serializers.ModelSerializer):
@@ -82,7 +104,7 @@ class ServiceCreateSerializer(serializers.ModelSerializer):
         model = Service
         fields = [
             'category', 'title', 'description', 'price', 'price_unit', 'min_order_qty',
-            'location_lat', 'location_lng', 'service_radius_km', 'specifications', 'images'
+            'service_radius_km', 'specifications', 'images'
         ]
 
     def create(self, validated_data):
@@ -114,5 +136,5 @@ class ServiceUpdateSerializer(serializers.ModelSerializer):
         model = Service
         fields = [
             'title', 'description', 'price', 'price_unit', 'min_order_qty',
-            'is_available', 'location_lat', 'location_lng', 'service_radius_km', 'specifications'
+            'is_available', 'service_radius_km', 'specifications'
         ]

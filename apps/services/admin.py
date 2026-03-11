@@ -55,7 +55,7 @@ class ServiceAdmin(admin.ModelAdmin):
             'fields': ('price', 'price_unit', 'min_order_qty', 'status', 'is_available')
         }),
         ('Location', {
-            'fields': ('location_lat', 'location_lng', 'service_radius_km')
+            'fields': ('service_radius_km',)
         }),
         ('Technical', {
             'fields': ('specifications', 'created_at', 'updated_at')

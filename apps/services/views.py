@@ -63,22 +63,27 @@ class ServiceListView(generics.ListAPIView):
                 user_lng = float(lng)
                 radius = float(distance_param) if distance_param else 5.0  # default 5km
 
-                # Only include services that have location data
-                queryset = queryset.exclude(location_lat__isnull=True).exclude(location_lng__isnull=True)
+                # Only include services whose partner has location data
+                queryset = queryset.exclude(
+                    partner__user__location__isnull=True
+                ).exclude(
+                    partner__user__location__latitude__isnull=True
+                ).exclude(
+                    partner__user__location__longitude__isnull=True
+                )
 
                 # Haversine distance annotation (result in km)
                 from django.db.models import FloatField, Value, F, ExpressionWrapper
                 from django.db.models.functions import ACos, Cos, Radians, Sin
-                import math
 
                 queryset = queryset.annotate(
                     distance=ExpressionWrapper(
                         Value(6371.0) * ACos(
                             Cos(Radians(Value(user_lat, output_field=FloatField()))) *
-                            Cos(Radians(F('location_lat'))) *
-                            Cos(Radians(F('location_lng')) - Radians(Value(user_lng, output_field=FloatField()))) +
+                            Cos(Radians(F('partner__user__location__latitude'))) *
+                            Cos(Radians(F('partner__user__location__longitude')) - Radians(Value(user_lng, output_field=FloatField()))) +
                             Sin(Radians(Value(user_lat, output_field=FloatField()))) *
-                            Sin(Radians(F('location_lat')))
+                            Sin(Radians(F('partner__user__location__latitude')))
                         ),
                         output_field=FloatField()
                     )
