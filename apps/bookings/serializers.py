@@ -75,8 +75,10 @@ class BookingDetailSerializer(serializers.ModelSerializer):
                 # Provider viewing - hide start_job_otp, show end_job_otp
                 data['start_job_otp'] = '****' if data['start_job_otp'] else None
             else:
-                # Customer viewing - hide end_job_otp, show start_job_otp
-                data['end_job_otp'] = '****' if data['end_job_otp'] else None
+                # Customer viewing - show start_job_otp always
+                # Show end_job_otp only when job is IN_PROGRESS (customer gives it to provider to complete)
+                if instance.status != Booking.Status.IN_PROGRESS:
+                    data['end_job_otp'] = '****' if data['end_job_otp'] else None
         
         return data
 
