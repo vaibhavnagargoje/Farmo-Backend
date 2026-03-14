@@ -33,13 +33,14 @@ class ServiceListSerializer(serializers.ModelSerializer):
     partner_rating = serializers.DecimalField(source='partner.rating', max_digits=3, decimal_places=2, read_only=True)
     thumbnail = serializers.SerializerMethodField()
     partner_location = serializers.SerializerMethodField()
+    images = ServiceImageSerializer(many=True, read_only=True)
 
     class Meta:
         model = Service
         fields = [
-            'id', 'title', 'price', 'price_unit', 'category_name',
-            'partner_name', 'partner_rating', 'is_available', 'thumbnail',
-            'partner_location', 'service_radius_km'
+            'id', 'title', 'description', 'price', 'price_unit', 'category', 'category_name',
+            'partner_name', 'partner_rating', 'status', 'is_available', 'thumbnail',
+            'partner_location', 'service_radius_km', 'images'
         ]
 
     def get_thumbnail(self, obj):
