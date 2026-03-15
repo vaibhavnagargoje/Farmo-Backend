@@ -1,9 +1,10 @@
 from django.urls import path
-from . import views # assuming you have these views
+from .views import RegisterDeviceTokenView, NotificationListView, MarkNotificationReadView
 
-# This is the namespace registration
-app_name = '' 
+app_name = 'notifications'
 
 urlpatterns = [
-    path()
+    path('register-device/', RegisterDeviceTokenView.as_view(), name='register-device'),
+    path('', NotificationListView.as_view(), name='notification-list'),
+    path('<int:pk>/read/', MarkNotificationReadView.as_view(), name='notification-read'),
 ]

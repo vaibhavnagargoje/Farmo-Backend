@@ -47,6 +47,9 @@ urlpatterns = [
     
     # Bookings App (Customer & Provider Bookings)
     path('api/v1/bookings/', include('bookings.urls', namespace='bookings')),
+
+    # Notifications App (FCM & Alerts)
+    path('api/v1/notifications/', include('notifications.urls', namespace='notifications')),
 ]
 
 if settings.DEBUG:

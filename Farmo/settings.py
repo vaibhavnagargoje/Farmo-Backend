@@ -247,3 +247,16 @@ SIMPLE_JWT = {
     # 'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
+
+# --- Firebase Cloud Messaging (FCM) ---
+import firebase_admin
+from firebase_admin import credentials
+
+FIREBASE_KEY_PATH = os.path.join(BASE_DIR, 'farmo-3343e-firebase-adminsdk-fbsvc-f1ae9dbb49.json')
+if os.path.exists(FIREBASE_KEY_PATH):
+    try:
+        cred = credentials.Certificate(FIREBASE_KEY_PATH)
+        if not firebase_admin._apps:
+            firebase_admin.initialize_app(cred)
+    except Exception as e:
+        print(f"Failed to initialize Firebase: {e}")
