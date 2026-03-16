@@ -50,6 +50,9 @@ urlpatterns = [
 
     # Notifications App (FCM & Alerts)
     path('api/v1/notifications/', include('notifications.urls', namespace='notifications')),
+    
+    # Search App
+    path('api/v1/search/', include('search.urls', namespace='search')),
 ]
 
 if settings.DEBUG:

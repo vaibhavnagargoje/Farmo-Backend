@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.postgres',
 
     "tailwind",
     "theme",
@@ -79,6 +80,7 @@ INSTALLED_APPS = [
     'services',
     'users',
     'locations',
+    'search',
 ]
 
 
@@ -259,4 +261,4 @@ if os.path.exists(FIREBASE_KEY_PATH):
         if not firebase_admin._apps:
             firebase_admin.initialize_app(cred)
     except Exception as e:
-        print(f"Failed to initialize Firebase: {e}")
+        print(f"Failed to initialize Firebase: {e}")
