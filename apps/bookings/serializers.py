@@ -88,12 +88,17 @@ class BookingCreateSerializer(serializers.ModelSerializer):
     Serializer for Customers to create a new Booking.
     """
     service_id = serializers.IntegerField(write_only=True)
+    price_unit = serializers.ChoiceField(
+        choices=Service.PriceUnit.choices,
+        required=False,
+        allow_null=True,
+    )
 
     class Meta:
         model = Booking
         fields = [
             'service_id', 'scheduled_date', 'scheduled_time',
-            'address', 'lat', 'lng', 'quantity', 'note'
+            'address', 'lat', 'lng', 'quantity', 'price_unit', 'note'
         ]
 
     def validate_service_id(self, value):
@@ -110,29 +115,36 @@ class BookingCreateSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
-        from services.models import Service
         service = Service.objects.get(id=attrs['service_id'])
         quantity = attrs.get('quantity', 1)
+        requested_unit = attrs.get('price_unit')
         
         # Check minimum order quantity
         if quantity < service.min_order_qty:
             raise serializers.ValidationError({
                 "quantity": f"Minimum order quantity is {service.min_order_qty}."
             })
+
+        # Scheduled bookings must keep the unit configured on the service.
+        if requested_unit and requested_unit != service.price_unit:
+            raise serializers.ValidationError({
+                "price_unit": f"This service is priced in {service.price_unit}."
+            })
         
         return attrs
 
     def create(self, validated_data):
-        from services.models import Service
-        
+        requested_unit = validated_data.pop('price_unit', None)
         service_id = validated_data.pop('service_id')
         service = Service.objects.get(id=service_id)
+        resolved_unit = requested_unit or service.price_unit
         
         # Create booking with snapshot pricing
         booking = Booking.objects.create(
             customer=self.context['request'].user,
             service=service,
             provider=service.partner,
+            price_unit=resolved_unit,
             unit_price=service.price,
             total_amount=service.price * validated_data.get('quantity', 1),
             **validated_data
@@ -202,6 +214,11 @@ class InstantBookingCreateSerializer(serializers.Serializer):
     """
     category_id = serializers.IntegerField()
     quantity = serializers.IntegerField(min_value=1)
+    price_unit = serializers.ChoiceField(
+        choices=Service.PriceUnit.choices,
+        required=False,
+        allow_null=True,
+    )
     note = serializers.CharField(required=False, allow_blank=True, default="")
     address = serializers.CharField()
     lat = serializers.FloatField()
@@ -292,7 +309,8 @@ class InstantBookingCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 "Instant booking price is not configured for this category."
             )
-        price_unit = category.instant_price_unit
+        requested_unit = validated_data.get('price_unit')
+        price_unit = requested_unit or category.instant_price_unit
 
         # Find nearby services for provider broadcast
         nearby_services = self._find_nearby_services(

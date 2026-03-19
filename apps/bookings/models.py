@@ -92,8 +92,8 @@ class Booking(models.Model):
     price_unit = models.CharField(
         max_length=10,
         choices=[
-            ('HOUR', 'Per Hour'), ('DAY', 'Per Day'),
-            ('KM', 'Per Kilometer'), ('ACRE', 'Per Acre'),
+            ('HOUR', 'Hour'), ('DAY', 'Day'),
+            ('KM', 'Kilometer'), ('ACRE', 'Acre'),
             ('FIXED', 'Fixed Price'),
         ],
         default='HOUR',

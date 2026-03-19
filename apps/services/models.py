@@ -23,8 +23,8 @@ class Category(models.Model):
     instant_price_unit = models.CharField(
         max_length=10,
         choices=[
-            ('HOUR', 'Per Hour'), ('DAY', 'Per Day'),
-            ('KM', 'Per Kilometer'), ('ACRE', 'Per Acre'),
+            ('HOUR', 'Hour'), ('DAY', 'Day'),
+            ('KM', 'Kilometer'), ('ACRE', 'Acre'),
             ('FIXED', 'Fixed Price'),
         ],
         default='HOUR',
@@ -51,10 +51,10 @@ class Service(models.Model):
     The main listing created by a Partner.
     """
     class PriceUnit(models.TextChoices):
-        PER_HOUR = 'HOUR', 'Per Hour'
-        PER_DAY = 'DAY', 'Per Day'
-        PER_KM = 'KM', 'Per Kilometer'
-        PER_ACRE = 'ACRE', 'Per Acre'
+        PER_HOUR = 'HOUR', 'Hour'
+        PER_DAY = 'DAY', 'Day'
+        PER_KM = 'KM', 'Kilometer'
+        PER_ACRE = 'ACRE', 'Acre'
         FIXED = 'FIXED', 'Fixed Price'
 
     class Status(models.TextChoices):
