@@ -16,7 +16,7 @@ class PartnerProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='partner_profile')
     
     # Classification
-    partner_type = models.CharField(max_length=20, choices=PartnerType.choices)
+    partner_type = models.CharField(max_length=20, choices=PartnerType.choices, default=PartnerType.LABOR)
     
     # Business Info
     business_name = models.CharField(max_length=255, blank=True, null=True, help_text="Name displayed to customers")
