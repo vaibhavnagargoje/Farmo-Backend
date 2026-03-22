@@ -24,6 +24,7 @@ def notify_provider_on_direct_booking(sender, instance, created, **kwargs):
         title="New Direct Booking!",
         message=f"A farmer directly booked your {service_name} service.",
         booking_id=instance.booking_id,
+        notification_type=Notification.NotificationType.PROVIDER_JOB,
     )
 
     send_push_notification(
@@ -44,7 +45,8 @@ def notify_provider_of_new_job(sender, instance, created, **kwargs):
             user=provider_user,
             title="New Job Nearby!",
             message=f"A farmer needs a {instance.booking.category.name} service nearby.",
-            booking_id=instance.booking.booking_id
+            booking_id=instance.booking.booking_id,
+            notification_type=Notification.NotificationType.PROVIDER_JOB,
         )
         
         # Fire push notification via FCM
@@ -75,7 +77,8 @@ def notify_farmer_on_confirmation(sender, instance, **kwargs):
                 user=farmer_user,
                 title="Provider Confirmed!",
                 message=f"{provider_name} has accepted your booking and is on the way.",
-                booking_id=instance.booking_id
+                booking_id=instance.booking_id,
+                notification_type=Notification.NotificationType.CUSTOMER_BOOKING,
             )
 
             send_push_notification(
@@ -118,6 +121,7 @@ def notify_booking_cancelled_or_expired(sender, instance, created, **kwargs):
                     title="Booking Cancelled",
                     message=f"Customer cancelled booking {instance.booking_id}.",
                     booking_id=instance.booking_id,
+                    notification_type=Notification.NotificationType.PROVIDER_JOB,
                 )
                 send_push_notification(
                     user=provider_user,
@@ -131,6 +135,7 @@ def notify_booking_cancelled_or_expired(sender, instance, created, **kwargs):
                 title="Booking Cancelled",
                 message=f"Provider cancelled your booking {instance.booking_id}.",
                 booking_id=instance.booking_id,
+                notification_type=Notification.NotificationType.CUSTOMER_BOOKING,
             )
             send_push_notification(
                 user=customer_user,
@@ -145,6 +150,7 @@ def notify_booking_cancelled_or_expired(sender, instance, created, **kwargs):
                 title="Booking Cancelled",
                 message=f"Booking {instance.booking_id} was cancelled.",
                 booking_id=instance.booking_id,
+                notification_type=Notification.NotificationType.CUSTOMER_BOOKING,
             )
             send_push_notification(
                 user=customer_user,
@@ -159,6 +165,7 @@ def notify_booking_cancelled_or_expired(sender, instance, created, **kwargs):
                     title="Booking Cancelled",
                     message=f"Booking {instance.booking_id} was cancelled.",
                     booking_id=instance.booking_id,
+                    notification_type=Notification.NotificationType.PROVIDER_JOB,
                 )
                 send_push_notification(
                     user=provider_user,
@@ -182,6 +189,7 @@ def notify_booking_cancelled_or_expired(sender, instance, created, **kwargs):
                 title="Booking Expired",
                 message=f"No provider accepted booking {instance.booking_id} in time.",
                 booking_id=instance.booking_id,
+                notification_type=Notification.NotificationType.CUSTOMER_BOOKING,
             )
             send_push_notification(
                 user=customer_user,

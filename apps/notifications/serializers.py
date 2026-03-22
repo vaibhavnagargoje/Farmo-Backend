@@ -24,4 +24,4 @@ class DeviceTokenSerializer(serializers.ModelSerializer):
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
-        fields = ['id', 'title', 'message', 'is_read', 'booking_id', 'created_at']
+        fields = ['id', 'title', 'message', 'is_read', 'booking_id', 'notification_type', 'created_at']

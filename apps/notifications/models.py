@@ -12,11 +12,21 @@ class DeviceToken(models.Model):
 
 
 class Notification(models.Model):
+    class NotificationType(models.TextChoices):
+        CUSTOMER_BOOKING = 'CUSTOMER_BOOKING', 'Customer Booking'
+        PROVIDER_JOB = 'PROVIDER_JOB', 'Provider Job'
+        GENERAL = 'GENERAL', 'General'
+
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')
     title = models.CharField(max_length=255)
     message = models.TextField()
     is_read = models.BooleanField(default=False)
     booking_id = models.CharField(max_length=50, null=True, blank=True)
+    notification_type = models.CharField(
+        max_length=20,
+        choices=NotificationType.choices,
+        default=NotificationType.GENERAL,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
