@@ -5,7 +5,9 @@ from .views import (
     PartnerRegistrationView,
     PartnerProfileView,
     PartnerPublicView,
-    PartnerDashboardView
+    PartnerDashboardView,
+    LaborDetailsView,
+    NearbyLaborsView
 )
 
 app_name = 'partners'
@@ -21,4 +23,10 @@ urlpatterns = [
     
     # Public Partner View (for customers)
     path('<int:id>/', PartnerPublicView.as_view(), name='public-profile'),
+    
+    # Labor Details (view/edit for LABOR partners)
+    path('labor-details/', LaborDetailsView.as_view(), name='labor-details'),
+    
+    # Nearby Labors (public, location-based)
+    path('nearby-labors/', NearbyLaborsView.as_view(), name='nearby-labors'),
 ]

@@ -105,3 +105,19 @@ class PartnerProfileUpdateSerializer(serializers.ModelSerializer):
             'about',
             'is_available', 'aadhar_card_front', 'aadhar_card_back', 'pan_card', 'is_kyc_submitted'
         ]
+
+
+class LaborDetailsUpdateSerializer(serializers.ModelSerializer):
+    """
+    Writable serializer for updating an existing LaborDetails record.
+    All fields optional to allow partial updates.
+    """
+    class Meta:
+        model = LaborDetails
+        fields = ['skills', 'daily_wage_estimate', 'is_migrant_worker', 'skill_card_photo']
+        extra_kwargs = {
+            'skills': {'required': False},
+            'daily_wage_estimate': {'required': False},
+            'is_migrant_worker': {'required': False},
+            'skill_card_photo': {'required': False},
+        }
