@@ -21,7 +21,7 @@ class CategoryAdmin(admin.ModelAdmin):
             'fields': ('name', 'slug', 'icon', 'is_active')
         }),
         ('Instant Booking Settings', {
-            'description': 'Configure pricing and behavior for instant (quick) bookings. Price is set here by admin.',
+            'description': 'Global fallback pricing for instant bookings. For location-specific prices, use Pricing Zones (Locations → Pricing Zones).',
             'fields': (
                 'instant_enabled', 'instant_price', 'instant_price_unit',
                 'instant_timeout_minutes', 'instant_search_radius_km'

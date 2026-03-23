@@ -275,10 +275,11 @@ class NearbyLaborsView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Get all verified LABOR partners who have a location
+        # Get all verified LABOR partners who have a location and are online
         labor_partners = PartnerProfile.objects.filter(
             partner_type=PartnerProfile.PartnerType.LABOR,
             is_verified=True,
+            is_available=True,
         ).select_related('user')
 
         results = []

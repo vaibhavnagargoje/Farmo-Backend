@@ -32,6 +32,7 @@ class SearchView(APIView):
         base_qs = Service.objects.filter(
             status=Service.Status.ACTIVE,
             is_available=True,
+            partner__is_available=True,
         ).select_related(
             'category', 'partner', 'partner__user'
         ).prefetch_related('images')

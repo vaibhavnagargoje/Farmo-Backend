@@ -7,11 +7,47 @@ from partners.serializers import PartnerProfileSerializer
 class CategorySerializer(serializers.ModelSerializer):
     """
     Serializer for Service Categories.
+    When lat/lng query params are present, instant_price and instant_price_unit
+    are resolved from PricingZones instead of using the global fallback.
     """
+    instant_price = serializers.SerializerMethodField()
+    instant_price_unit = serializers.SerializerMethodField()
+
     class Meta:
         model = Category
         fields = ['id', 'name', 'slug', 'icon', 'is_active', 'instant_price', 'instant_price_unit', 'instant_enabled']
         read_only_fields = ['id', 'slug']
+
+    def _resolve_zone_price(self, obj):
+        """Resolve zone price once and cache on the serializer instance."""
+        cache_key = f'_zone_cache_{obj.pk}'
+        if not hasattr(self, cache_key):
+            request = self.context.get('request')
+            result = None
+            if request:
+                lat = request.query_params.get('lat')
+                lng = request.query_params.get('lng')
+                if lat and lng:
+                    try:
+                        from locations.pricing import resolve_instant_price
+                        price, unit, zone_name = resolve_instant_price(obj, float(lat), float(lng))
+                        result = (price, unit)
+                    except (ValueError, TypeError):
+                        pass
+            setattr(self, cache_key, result)
+        return getattr(self, cache_key)
+
+    def get_instant_price(self, obj):
+        resolved = self._resolve_zone_price(obj)
+        if resolved:
+            return str(resolved[0])
+        return str(obj.instant_price)
+
+    def get_instant_price_unit(self, obj):
+        resolved = self._resolve_zone_price(obj)
+        if resolved:
+            return resolved[1]
+        return obj.instant_price_unit
 
 
 class ServiceImageSerializer(serializers.ModelSerializer):

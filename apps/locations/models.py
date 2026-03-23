@@ -22,3 +22,7 @@ class UserLocation(models.Model):
 
     def __str__(self):
         return f"Location for {self.user} — {self.address[:50] or 'No address'}"
+
+
+# Make PricingZone discoverable by Django for migrations
+from .pricing_models import PricingZone  # noqa: E402, F401

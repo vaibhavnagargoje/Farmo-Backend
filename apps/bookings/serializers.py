@@ -104,7 +104,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
     def validate_service_id(self, value):
         from services.models import Service
         try:
-            service = Service.objects.get(id=value, status=Service.Status.ACTIVE, is_available=True)
+            service = Service.objects.get(id=value, status=Service.Status.ACTIVE, is_available=True, partner__is_available=True)
         except Service.DoesNotExist:
             raise serializers.ValidationError("Service not found or not available.")
         return value
@@ -303,14 +303,17 @@ class InstantBookingCreateSerializer(serializers.Serializer):
         quantity = validated_data['quantity']
         radius_km = category.instant_search_radius_km
 
-        # Use admin-set instant price from the category
-        unit_price = round(float(category.instant_price), 2)
+        # Resolve location-aware price (zone → default zone → category fallback)
+        from locations.pricing import resolve_instant_price
+        unit_price, resolved_price_unit, zone_name = resolve_instant_price(
+            category, user_lat, user_lng
+        )
         if unit_price <= 0:
             raise serializers.ValidationError(
                 "Instant booking price is not configured for this category."
             )
         requested_unit = validated_data.get('price_unit')
-        price_unit = requested_unit or category.instant_price_unit
+        price_unit = requested_unit or resolved_price_unit
 
         # Find nearby services for provider broadcast
         nearby_services = self._find_nearby_services(

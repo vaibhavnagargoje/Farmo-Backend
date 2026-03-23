@@ -41,7 +41,7 @@ class ServiceListView(generics.ListAPIView):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        queryset = Service.objects.filter(status=Service.Status.ACTIVE, is_available=True)
+        queryset = Service.objects.filter(status=Service.Status.ACTIVE, is_available=True, partner__is_available=True)
         
         # Manual filtering for category
         category_slug = self.request.query_params.get('category')
@@ -98,7 +98,7 @@ class ServiceDetailView(generics.RetrieveAPIView):
     """
     GET: View details of a single service.
     """
-    queryset = Service.objects.filter(status=Service.Status.ACTIVE)
+    queryset = Service.objects.filter(status=Service.Status.ACTIVE, partner__is_available=True)
     serializer_class = ServiceDetailSerializer
     permission_classes = []  # Public
     lookup_field = 'id'
