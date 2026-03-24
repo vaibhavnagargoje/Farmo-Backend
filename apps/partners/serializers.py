@@ -29,15 +29,28 @@ class PartnerProfileSerializer(serializers.ModelSerializer):
     """
     user_phone = serializers.CharField(source='user.phone_number', read_only=True)
     full_name = serializers.CharField(source='user.customer_profile.full_name', read_only=True, default='')
+    profile_picture = serializers.SerializerMethodField()
     
     class Meta:
         model = PartnerProfile
         fields = [
-            'id', 'user', 'user_phone', 'full_name', 'partner_type', 'about',
+            'id', 'user', 'user_phone', 'full_name', 'profile_picture', 'partner_type', 'about',
             'is_verified', 'is_kyc_submitted', 'is_available',
             'rating', 'jobs_completed', 'created_at'
         ]
         read_only_fields = ['id', 'user', 'is_verified', 'rating', 'jobs_completed', 'created_at']
+
+    def get_profile_picture(self, obj):
+        profile = getattr(obj.user, 'customer_profile', None)
+        if profile and profile.profile_picture:
+            request = self.context.get('request')
+            photo_url = profile.profile_picture.url
+            if request:
+                return request.build_absolute_uri(photo_url)
+            from django.conf import settings
+            domain = getattr(settings, 'BACKEND_URL', 'http://127.0.0.1:8000').rstrip('/')
+            return f"{domain}{photo_url}"
+        return None
 
 
 class PartnerRegistrationSerializer(serializers.ModelSerializer):

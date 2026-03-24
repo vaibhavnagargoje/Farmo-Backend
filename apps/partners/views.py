@@ -311,18 +311,23 @@ class NearbyLaborsView(APIView):
                 # Get labor details
                 labor = getattr(partner, 'labor_details', None)
                 full_name = ''
+                profile_pic_url = None
                 try:
-                    full_name = partner.user.customer_profile.full_name
+                    profile = partner.user.customer_profile
+                    full_name = profile.full_name
+                    if profile.profile_picture:
+                        profile_pic_url = request.build_absolute_uri(profile.profile_picture.url)
                 except Exception:
                     pass
 
                 results.append({
                     "id": partner.id,
                     "full_name": full_name or partner.user.phone_number,
+                    "profile_picture": profile_pic_url,
                     "skills": labor.skills if labor else "",
                     "daily_wage_estimate": str(labor.daily_wage_estimate) if labor and labor.daily_wage_estimate else None,
                     "is_migrant_worker": labor.is_migrant_worker if labor else False,
-                    "skill_card_photo": labor.skill_card_photo.url if labor and labor.skill_card_photo else None,
+                    "skill_card_photo": request.build_absolute_uri(labor.skill_card_photo.url) if labor and labor.skill_card_photo else None,
                     "is_available": partner.is_available,
                     "rating": str(partner.rating),
                     "jobs_completed": partner.jobs_completed,

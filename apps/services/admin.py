@@ -18,7 +18,7 @@ class CategoryAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ('Basic Info', {
-            'fields': ('name', 'slug', 'icon', 'is_active')
+            'fields': ('name', 'name_translations', 'slug', 'icon', 'is_active')
         }),
         ('Instant Booking Settings', {
             'description': 'Global fallback pricing for instant bookings. For location-specific prices, use Pricing Zones (Locations → Pricing Zones).',

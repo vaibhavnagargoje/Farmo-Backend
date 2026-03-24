@@ -23,6 +23,16 @@ class User(AbstractUser):
     
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.CUSTOMER)
     
+    # Language preference
+    class Language(models.TextChoices):
+        ENGLISH = 'en', 'English'
+        MARATHI = 'mr', 'मराठी'
+
+    preferred_language = models.CharField(
+        max_length=5, choices=Language.choices, default=Language.ENGLISH,
+        help_text="User's preferred app language"
+    )
+    
     # Standard Django fields (is_staff, is_active) are inherited from AbstractUser
     
     USERNAME_FIELD = 'phone_number' 

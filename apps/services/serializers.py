@@ -7,16 +7,32 @@ from partners.serializers import PartnerProfileSerializer
 class CategorySerializer(serializers.ModelSerializer):
     """
     Serializer for Service Categories.
-    When lat/lng query params are present, instant_price and instant_price_unit
-    are resolved from PricingZones instead of using the global fallback.
+    Supports: ?lang=mr for translated names, ?lat=&lng= for zone pricing.
     """
+    name = serializers.SerializerMethodField()
     instant_price = serializers.SerializerMethodField()
     instant_price_unit = serializers.SerializerMethodField()
 
     class Meta:
         model = Category
-        fields = ['id', 'name', 'slug', 'icon', 'is_active', 'instant_price', 'instant_price_unit', 'instant_enabled']
+        fields = ['id', 'name', 'name_translations', 'slug', 'icon', 'is_active', 'instant_price', 'instant_price_unit', 'instant_enabled']
         read_only_fields = ['id', 'slug']
+
+    def _get_lang(self):
+        """Get language from ?lang= query param, default 'en'."""
+        request = self.context.get('request')
+        if request:
+            return request.query_params.get('lang', 'en')
+        return 'en'
+
+    def get_name(self, obj):
+        """Return translated name if available for requested language."""
+        lang = self._get_lang()
+        if lang != 'en' and obj.name_translations:
+            translated = obj.name_translations.get(lang)
+            if translated:
+                return translated
+        return obj.name
 
     def _resolve_zone_price(self, obj):
         """Resolve zone price once and cache on the serializer instance."""
@@ -64,9 +80,10 @@ class ServiceListSerializer(serializers.ModelSerializer):
     """
     Lightweight serializer for listing services (e.g., search results).
     """
-    category_name = serializers.CharField(source='category.name', read_only=True)
+    category_name = serializers.SerializerMethodField()
     partner_name = serializers.CharField(source='partner.user.customer_profile.full_name', read_only=True, default='')
     partner_rating = serializers.DecimalField(source='partner.rating', max_digits=3, decimal_places=2, read_only=True)
+    partner_profile_picture = serializers.SerializerMethodField()
     thumbnail = serializers.SerializerMethodField()
     partner_location = serializers.SerializerMethodField()
     images = ServiceImageSerializer(many=True, read_only=True)
@@ -75,7 +92,7 @@ class ServiceListSerializer(serializers.ModelSerializer):
         model = Service
         fields = [
             'id', 'title', 'description', 'price', 'price_unit', 'category', 'category_name',
-            'partner_name', 'partner_rating', 'status', 'is_available', 'thumbnail',
+            'partner_name', 'partner_rating', 'partner_profile_picture', 'status', 'is_available', 'thumbnail',
             'partner_location', 'service_radius_km', 'images'
         ]
 
@@ -85,6 +102,27 @@ class ServiceListSerializer(serializers.ModelSerializer):
             request = self.context.get('request')
             if request:
                 return request.build_absolute_uri(thumbnail.image.url)
+        return None
+
+    def get_category_name(self, obj):
+        request = self.context.get('request')
+        lang = request.query_params.get('lang', 'en') if request else 'en'
+        if lang != 'en' and obj.category and obj.category.name_translations:
+            translated = obj.category.name_translations.get(lang)
+            if translated:
+                return translated
+        return obj.category.name if obj.category else ''
+
+    def get_partner_profile_picture(self, obj):
+        profile = getattr(obj.partner.user, 'customer_profile', None)
+        if profile and profile.profile_picture:
+            request = self.context.get('request')
+            photo_url = profile.profile_picture.url
+            if request:
+                return request.build_absolute_uri(photo_url)
+            from django.conf import settings
+            domain = getattr(settings, 'BACKEND_URL', 'http://127.0.0.1:8000').rstrip('/')
+            return f"{domain}{photo_url}"
         return None
 
     def get_partner_location(self, obj):

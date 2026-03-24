@@ -75,7 +75,7 @@ class VerifyOTPView(APIView):
                 return Response({
                     'refresh': str(refresh),
                     'access': str(refresh.access_token),
-                    'user': UserSerializer(user).data,
+                    'user': UserSerializer(user, context={'request': request}).data,
                     'message': 'Login Successful',
                     'is_new_user': created
                 }, status=status.HTTP_200_OK)
@@ -100,7 +100,7 @@ class ProfileUpdateView(APIView):
         loc = user.location if hasattr(user, "location") else None
         
         response_data = {
-            "user": UserSerializer(user).data,
+            "user": UserSerializer(user, context={'request': request}).data,
             "profile": None
         }
         
@@ -149,6 +149,34 @@ class ProfileUpdateView(APIView):
 
         return Response({
             "message": "Profile updated",
-            "user": UserSerializer(user).data,
+            "user": UserSerializer(user, context={'request': request}).data,
             "profile": profile_data
         }, status=status.HTTP_200_OK)
+
+
+class LanguagePreferenceView(APIView):
+    """
+    GET:  Return user's preferred language.
+    POST: Set user's preferred language. Body: { "language": "mr" }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response({
+            "language": request.user.preferred_language,
+        })
+
+    def post(self, request):
+        lang = request.data.get('language', '').strip()
+        valid_codes = [c[0] for c in User.Language.choices]
+        if lang not in valid_codes:
+            return Response(
+                {"error": f"Invalid language. Choices: {valid_codes}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        request.user.preferred_language = lang
+        request.user.save(update_fields=['preferred_language'])
+        return Response({
+            "message": "Language updated",
+            "language": lang,
+        })

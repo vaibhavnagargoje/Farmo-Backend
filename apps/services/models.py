@@ -11,6 +11,10 @@ class Category(models.Model):
     - Goods Transport
     """
     name = models.CharField(max_length=100)
+    name_translations = models.JSONField(
+        default=dict, blank=True,
+        help_text='Translations: {"mr": "मराठी नाव", "hi": "हिंदी नाम"}'
+    )
     slug = models.SlugField(unique=True)
     icon = models.ImageField(upload_to='categories/icons/', blank=True, null=True)
     is_active = models.BooleanField(default=True)

@@ -7,13 +7,14 @@ User = get_user_model()
 class UserSerializer(serializers.ModelSerializer):
     """
     Serializer for the Custom User model.
-    Exposes full_name from CustomerProfile instead of first_name/last_name.
+    Exposes full_name and profile_picture from CustomerProfile.
     """
     full_name = serializers.SerializerMethodField()
+    profile_picture = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'phone_number', 'email', 'role', 'full_name', 'is_active']
+        fields = ['id', 'phone_number', 'email', 'role', 'full_name', 'profile_picture', 'is_active', 'preferred_language']
         read_only_fields = ['id', 'role', 'is_active']
 
     def get_full_name(self, obj):
@@ -21,6 +22,19 @@ class UserSerializer(serializers.ModelSerializer):
         if profile and profile.full_name:
             return profile.full_name
         return ""
+
+    def get_profile_picture(self, obj):
+        profile = getattr(obj, 'customer_profile', None)
+        if profile and profile.profile_picture:
+            request = self.context.get('request')
+            photo_url = profile.profile_picture.url
+            if request:
+                return request.build_absolute_uri(photo_url)
+            # Fallback if request context is somehow missing
+            from django.conf import settings
+            domain = getattr(settings, 'BACKEND_URL', 'http://127.0.0.1:8000').rstrip('/')
+            return f"{domain}{photo_url}"
+        return None
 
 
 class SendOTPSerializer(serializers.Serializer):
