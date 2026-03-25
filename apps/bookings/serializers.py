@@ -19,12 +19,13 @@ class BookingListSerializer(serializers.ModelSerializer):
     provider_name = serializers.CharField(source='provider.user.customer_profile.full_name', read_only=True, default=None)
     customer_phone = serializers.CharField(source='customer.phone_number', read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True, default=None)
+    category_name_translations = serializers.JSONField(source='category.name_translations', read_only=True, default=dict)
 
     class Meta:
         model = Booking
         fields = [
             'id', 'booking_id', 'order_number', 'booking_type', 'status', 'payment_status',
-            'service_title', 'category_name', 'provider_name', 'customer_phone',
+            'service_title', 'category_name', 'category_name_translations', 'provider_name', 'customer_phone',
             'scheduled_date', 'scheduled_time', 'quantity', 'price_unit', 'unit_price', 'total_amount', 'expires_at',
             'address', 'lat', 'lng', 'note', 'cancellation_reason',
             'broadcast_count', 'assigned_at', 'created_at'
@@ -47,12 +48,13 @@ class BookingDetailSerializer(serializers.ModelSerializer):
     customer = UserSerializer(read_only=True)
     cancelled_by = UserSerializer(read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True, default=None)
+    category_name_translations = serializers.JSONField(source='category.name_translations', read_only=True, default=dict)
 
     class Meta:
         model = Booking
         fields = [
             'id', 'booking_id', 'order_number', 'booking_type', 'status', 'payment_status',
-            'customer', 'service', 'provider', 'category_name',
+            'customer', 'service', 'provider', 'category_name', 'category_name_translations',
             'scheduled_date', 'scheduled_time', 'expires_at',
             'broadcast_count', 'current_broadcast_radius', 'assigned_at',
             'work_started_at', 'work_completed_at',
