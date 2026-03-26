@@ -39,17 +39,27 @@ class UserSerializer(serializers.ModelSerializer):
 
 class SendOTPSerializer(serializers.Serializer):
     """
-    Validates the phone number for sending OTP.
+    Validates phone number and email for sending OTP to email.
     """
     phone_number = serializers.CharField(max_length=15, required=True)
+    email = serializers.EmailField(required=True)
 
 
 class VerifyOTPSerializer(serializers.Serializer):
     """
-    Validates the phone number and OTP for login.
+    Validates the phone number, email, and OTP for login.
     """
     phone_number = serializers.CharField(max_length=15, required=True)
+    email = serializers.EmailField(required=True)
     otp = serializers.CharField(max_length=6, min_length=4, required=True)
+
+
+class GoogleAuthSerializer(serializers.Serializer):
+    """
+    Validates Google id_token and phone_number for Google Sign-In.
+    """
+    id_token = serializers.CharField(required=True)
+    phone_number = serializers.CharField(max_length=15, required=True)
 
 
 class ProfileUpdateSerializer(serializers.Serializer):
