@@ -264,16 +264,17 @@ if os.path.exists(FIREBASE_KEY_PATH):
         print(f"Failed to initialize Firebase: {e}")
 
 # --- Email Configuration ---
-if DEBUG:
-    # In development, emails are printed to console (no SMTP needed)
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+
+if DEBUG and not EMAIL_HOST_USER:
+    # In development without SMTP credentials, emails are printed to console
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 else:
-    # In production, use SMTP (configure via environment variables)
+    # In production (or if SMTP creds exist in dev), use real SMTP
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+    EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp-relay.brevo.com')
     EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
     EMAIL_USE_TLS = True
-    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
     EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'Farmo <noreply@farmo.in>')
