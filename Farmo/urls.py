@@ -24,6 +24,11 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
 
+# Apply rate-limit override to Core Django Admin
+from apps.adminpanel.views import rate_limited_django_admin_login
+from django.contrib.admin import site
+site.login = rate_limited_django_admin_login
+
 urlpatterns = [
     path('admin/', admin.site.urls),
 
