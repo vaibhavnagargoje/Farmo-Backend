@@ -25,7 +25,7 @@ from rest_framework_simplejwt.views import (
 )
 
 # Apply rate-limit override to Core Django Admin
-from apps.adminpanel.views import rate_limited_django_admin_login
+from adminpanel.views import rate_limited_django_admin_login
 from django.contrib.admin import site
 site.login = rate_limited_django_admin_login
 
