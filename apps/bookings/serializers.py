@@ -132,6 +132,25 @@ class BookingCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 "price_unit": f"This service is priced in {service.price_unit}."
             })
+
+        # Block duplicate: same customer + same provider while an order is still active
+        user = self.context['request'].user
+        active_with_provider = Booking.objects.filter(
+            customer=user,
+            provider=service.partner,
+            booking_type=Booking.BookingType.SCHEDULED,
+            status__in=[
+                Booking.Status.PENDING,
+                Booking.Status.CONFIRMED,
+                Booking.Status.IN_PROGRESS,
+            ],
+        ).exists()
+        if active_with_provider:
+            raise serializers.ValidationError({
+                "duplicate_provider": True,
+                "message": "You already have an active booking with this provider. "
+                           "Please wait for it to complete or cancel it before booking again.",
+            })
         
         return attrs
 
@@ -244,11 +263,12 @@ class InstantBookingCreateSerializer(serializers.Serializer):
         return value
 
     def validate(self, attrs):
-        """Check if user already has an active instant booking."""
+        """Check if user already has an active instant booking in the SAME category."""
         user = self.context['request'].user
         active_booking = Booking.objects.filter(
             customer=user,
             booking_type=Booking.BookingType.INSTANT,
+            category_id=attrs['category_id'],
             status__in=[
                 Booking.Status.SEARCHING,
                 Booking.Status.CONFIRMED,
@@ -258,7 +278,7 @@ class InstantBookingCreateSerializer(serializers.Serializer):
         if active_booking:
             raise serializers.ValidationError({
                 "active_booking_id": active_booking.booking_id,
-                "message": "You already have an active order. Cancel it or wait for it to expire.",
+                "message": "You already have an active order in this category. Cancel it or wait for it to expire.",
             })
         return attrs
 

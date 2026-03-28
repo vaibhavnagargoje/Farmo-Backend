@@ -53,6 +53,9 @@ urlpatterns = [
     
     # Search App
     path('api/v1/search/', include('search.urls', namespace='search')),
+
+    # Admin Panel App
+    path('api/v1/admin/', include('adminpanel.urls', namespace='adminpanel')),
 ]
 
 if settings.DEBUG:
