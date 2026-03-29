@@ -29,6 +29,14 @@ class SendOTPView(APIView):
             phone = serializer.validated_data['phone_number']
             email = serializer.validated_data['email']
             
+            # Check if user exists and is deactivated
+            user = User.objects.filter(phone_number=phone).first() or User.objects.filter(email=email).first()
+            if user and not user.is_active:
+                return Response(
+                    {"error": "Your account has been deleted. Please contact support or email us to reactivate."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
             # 1. Generate OTP
             otp = str(random.randint(1000, 9999))
             
@@ -106,6 +114,12 @@ class VerifyOTPView(APIView):
                 # 2. Get or Create User by phone_number (phone stays primary identifier)
                 user, created = User.objects.get_or_create(phone_number=phone)
                 
+                if not user.is_active:
+                    return Response(
+                        {"error": "Your account has been deleted. Please contact support or email us to reactivate."},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+                
                 # Check if email is already used by another user
                 if not user.email or user.email != email:
                     existing = User.objects.filter(email=email).exclude(pk=user.pk).first()
@@ -178,6 +192,12 @@ class GoogleAuthView(APIView):
             
             # 2. Get or Create User by phone_number
             user, created = User.objects.get_or_create(phone_number=phone)
+            
+            if not user.is_active:
+                return Response(
+                    {"error": "Your account has been deleted. Please contact support or email us to reactivate."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
             
             # Check if email is already used by another user
             if not user.email or user.email != google_email:
@@ -310,3 +330,16 @@ class LanguagePreferenceView(APIView):
             "message": "Language updated",
             "language": lang,
         })
+
+class DeleteAccountView(APIView):
+    """
+    Soft deletes the authenticated user account by setting is_active to False.
+    This prevents login but preserves historical data like bookings.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        user = request.user
+        user.is_active = False
+        user.save(update_fields=['is_active'])
+        return Response({"message": "Account successfully deleted."}, status=status.HTTP_200_OK)

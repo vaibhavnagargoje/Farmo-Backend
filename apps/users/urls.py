@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import SendOTPView, VerifyOTPView, GoogleAuthView, ProfileUpdateView, LanguagePreferenceView
+from .views import SendOTPView, VerifyOTPView, GoogleAuthView, ProfileUpdateView, LanguagePreferenceView, DeleteAccountView
 
 app_name = 'users' 
 
@@ -8,6 +8,7 @@ urlpatterns = [
     path('auth/send-otp/', SendOTPView.as_view(), name='send-otp'),
     path('auth/verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
     path('auth/google/', GoogleAuthView.as_view(), name='google-auth'),
+    path('auth/delete-account/', DeleteAccountView.as_view(), name='delete-account'),
     # Profile update (new user onboarding)
     path('profile/', ProfileUpdateView.as_view(), name='profile-update'),
     # Language preference
