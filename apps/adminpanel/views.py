@@ -3,10 +3,9 @@ from django.contrib.admin import site
 from django.contrib.auth.decorators import user_passes_test
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
-from django.db.models import Count
 from django.http import HttpResponseForbidden
+from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from locations.models import UserLocation
@@ -36,25 +35,77 @@ def is_agent(user):
     }
 
 
+def _get_registration_progress(registration):
+    partner_profile = registration.partner_profile
+    if partner_profile is None:
+        try:
+            partner_profile = registration.registered_user.partner_profile
+        except PartnerProfile.DoesNotExist:
+            partner_profile = None
+
+    has_partner_profile = bool(partner_profile)
+    partner_type = registration.partner_type or (partner_profile.partner_type if partner_profile else None)
+    has_labor_details = False
+
+    if has_partner_profile and partner_type == PartnerProfile.PartnerType.LABOR:
+        try:
+            partner_profile.labor_details
+            has_labor_details = True
+        except LaborDetails.DoesNotExist:
+            has_labor_details = False
+
+    if not has_partner_profile:
+        return {
+            "status_label": "प्रोफाइल अपूर्ण",
+            "status_tone": "amber",
+            "action_label": "प्रोफाइल पूर्ण करा",
+            "action_url": reverse(
+                "adminpanel:create-worker-profile",
+                kwargs={"user_id": registration.registered_user_id},
+            ),
+        }
+
+    if partner_type == PartnerProfile.PartnerType.LABOR and not has_labor_details:
+        return {
+            "status_label": "कामगार तपशील अपूर्ण",
+            "status_tone": "amber",
+            "action_label": "तपशील पूर्ण करा",
+            "action_url": reverse(
+                "adminpanel:worker-details",
+                kwargs={"user_id": registration.registered_user_id},
+            ),
+        }
+
+    return {
+        "status_label": "पूर्ण",
+        "status_tone": "emerald",
+        "action_label": "पाहा / अपडेट",
+        "action_url": reverse(
+            "adminpanel:registration-next",
+            kwargs={"user_id": registration.registered_user_id},
+        ),
+    }
+
+
 @user_passes_test(is_agent, login_url="/admin/login/")
 def dashboard(request):
     my_registrations = AgentPartnerRegistration.objects.filter(agent=request.user).select_related(
         "registered_user",
         "registered_user__customer_profile",
         "registered_user__location",
+        "partner_profile",
     )
-    team_registrations = AgentPartnerRegistration.objects.all()
-    today = timezone.localdate()
-
-    top_agents = (
-        team_registrations.exclude(agent__isnull=True)
-        .values("agent__phone_number")
-        .annotate(total_registered=Count("id"))
-        .order_by("-total_registered")[:5]
-    )
+    recent_registrations = []
+    for registration in my_registrations[:10]:
+        progress = _get_registration_progress(registration)
+        registration.status_label = progress["status_label"]
+        registration.status_tone = progress["status_tone"]
+        registration.action_label = progress["action_label"]
+        registration.action_url = progress["action_url"]
+        recent_registrations.append(registration)
 
     context = {
-        "page_title": "एजंट डॅशबोर्ड",
+        "page_title": "VLE डॅशबोर्ड",
         "my_total_registered": my_registrations.count(),
         "my_worker_registered": my_registrations.filter(
             partner_type=PartnerProfile.PartnerType.LABOR
@@ -62,14 +113,7 @@ def dashboard(request):
         "my_machinery_registered": my_registrations.filter(
             partner_type=PartnerProfile.PartnerType.MACHINERY_OWNER
         ).count(),
-        "my_today_registered": my_registrations.filter(created_at__date=today).count(),
-        "team_total_registered": team_registrations.count(),
-        "active_agents": team_registrations.exclude(agent__isnull=True)
-        .values("agent")
-        .distinct()
-        .count(),
-        "recent_registrations": my_registrations.select_related("registered_user")[:8],
-        "top_agents": top_agents,
+        "recent_registrations": recent_registrations,
     }
     return render(request, "adminpanel/dashboard.html", context)
 

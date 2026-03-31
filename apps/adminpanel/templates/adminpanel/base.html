@@ -4,31 +4,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Farmo एजंट पॅनल{% endblock %}</title>
+    <title>{% block title %}Farmo VLE पॅनल{% endblock %}</title>
     {% tailwind_css %}
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-100 text-slate-900 antialiased">
-    <div class="min-h-screen">
-        <header class="bg-white border-b border-slate-200">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+<body class="bg-slate-950 text-slate-900 antialiased">
+    <div class="relative min-h-screen overflow-x-hidden">
+        <div class="pointer-events-none absolute -top-32 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-emerald-500/20 blur-3xl"></div>
+        <div class="pointer-events-none absolute top-44 -left-20 h-60 w-60 rounded-full bg-cyan-400/20 blur-3xl"></div>
+
+        <header class="sticky top-0 z-30 border-b border-slate-200/70 bg-white/95 backdrop-blur">
+            <div class="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8 md:flex-row md:items-center md:justify-between">
                 <div>
-                    <h1 class="text-2xl font-bold text-emerald-700">Farmo एजंट पॅनल</h1>
-                    <p class="text-sm text-slate-500">आधी वापरकर्ता नोंदणी करा, नंतर कामगार किंवा मशिनरी प्रोफाइल पूर्ण करा.</p>
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">Farmo VLE</p>
+                    <h1 class="text-xl font-bold text-slate-900 sm:text-2xl">VLE अॅडमिन पॅनल</h1>
+                    <p class="text-xs text-slate-500 sm:text-sm">नोंदणीपासून प्रोफाइल पूर्ण होईपर्यंत संपूर्ण नियंत्रण एका ठिकाणी.</p>
                 </div>
-                <div class="flex flex-wrap items-center gap-2 text-sm">
-                    <a href="{% url 'adminpanel:dashboard' %}" class="px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50">डॅशबोर्ड</a>
-                    <a href="{% url 'adminpanel:register-user' %}" class="px-3 py-2 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">वापरकर्ता नोंदणी</a>
-                    <a href="/admin/logout/" class="px-3 py-2 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100">लॉगआउट</a>
-                </div>
+                <nav class="flex flex-wrap items-center gap-2 text-sm">
+                    <a href="{% url 'adminpanel:dashboard' %}" class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">डॅशबोर्ड</a>
+                    <a href="{% url 'adminpanel:register-user' %}" class="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 font-semibold text-emerald-700 transition hover:bg-emerald-100">नवीन नोंदणी</a>
+                    <a href="/admin/logout/" class="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 font-medium text-rose-700 transition hover:bg-rose-100">लॉगआउट</a>
+                </nav>
             </div>
         </header>
 
-        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <main class="relative z-10 mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 sm:py-8">
             {% if messages %}
                 <div class="mb-6 space-y-2">
                     {% for message in messages %}
-                        <div class="rounded-lg border px-4 py-3 text-sm {% if message.tags == 'error' %}border-rose-200 bg-rose-50 text-rose-700{% else %}border-emerald-200 bg-emerald-50 text-emerald-800{% endif %}">
+                        <div class="rounded-xl border px-4 py-3 text-sm shadow-sm {% if message.tags == 'error' %}border-rose-200 bg-rose-50 text-rose-700{% else %}border-emerald-200 bg-emerald-50 text-emerald-800{% endif %}">
                             {{ message }}
                         </div>
                     {% endfor %}

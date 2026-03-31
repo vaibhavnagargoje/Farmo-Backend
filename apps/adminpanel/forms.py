@@ -220,7 +220,7 @@ class LaborDetailsForm(forms.ModelForm):
         self.fields["skill_card_photo"].widget.attrs.update({"class": file_input_classes})
         self.fields["skill_card_photo"].label = "कौशल्य कार्ड फोटो (ऐच्छिक)"
 
-        self.fields["is_migrant_worker"].widget.attrs.update({"class": "mt-2 space-y-2"})
+        self.fields["is_migrant_worker"].widget.attrs.update({"class": "peer sr-only"})
 
         instance = kwargs.get("instance")
         if instance is not None and instance.pk:

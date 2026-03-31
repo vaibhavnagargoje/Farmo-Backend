@@ -1,94 +1,111 @@
 {% extends 'adminpanel/base.html' %}
 
-{% block title %}एजंट डॅशबोर्ड | Farmo{% endblock %}
+{% block title %}VLE डॅशबोर्ड | Farmo{% endblock %}
 
 {% block content %}
-<div class="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+<div class="mb-6 flex flex-col gap-4 sm:mb-8 md:flex-row md:items-center md:justify-between">
     <div>
-        <h2 class="text-2xl font-bold text-slate-900">{{ page_title }}</h2>
-        <p class="text-sm text-slate-500">तुमच्या नोंदणी कामाचा मागोवा ठेवा आणि नवीन वापरकर्ते जोडा.</p>
+        <h2 class="text-2xl font-bold text-white sm:text-3xl">{{ page_title }}</h2>
+        <p class="mt-1 text-sm text-slate-300">तुमच्या अलीकडील नोंदणीची स्थिती पाहा आणि अपूर्ण प्रोफाइल लगेच पूर्ण करा.</p>
     </div>
     <div class="flex flex-wrap gap-3">
-        <a href="{% url 'adminpanel:register-user' %}" class="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">वापरकर्ता नोंदणी</a>
+        <a href="{% url 'adminpanel:register-user' %}" class="inline-flex items-center justify-center rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-900/30 transition hover:bg-emerald-600">वापरकर्ता नोंदणी</a>
     </div>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
-    <div class="rounded-xl border border-slate-200 bg-white p-5">
-        <p class="text-sm text-slate-500">माझी एकूण नोंदणी</p>
+<div class="mb-6 grid grid-cols-1 gap-4 sm:mb-8 sm:grid-cols-2 lg:grid-cols-3">
+    <div class="rounded-2xl border border-white/20 bg-white/95 p-5 shadow-sm">
+        <p class="text-sm font-medium text-slate-500">माझी एकूण नोंदणी</p>
         <p class="mt-2 text-3xl font-bold text-slate-900">{{ my_total_registered }}</p>
     </div>
-    <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
-        <p class="text-sm text-emerald-700">नोंदणीकृत कामगार</p>
+    <div class="rounded-2xl border border-emerald-200 bg-emerald-50/95 p-5 shadow-sm">
+        <p class="text-sm font-medium text-emerald-700">नोंदणीकृत कामगार</p>
         <p class="mt-2 text-3xl font-bold text-emerald-900">{{ my_worker_registered }}</p>
     </div>
-    <div class="rounded-xl border border-blue-200 bg-blue-50 p-5">
-        <p class="text-sm text-blue-700">नोंदणीकृत मशिनरी</p>
+    <div class="rounded-2xl border border-sky-200 bg-sky-50/95 p-5 shadow-sm">
+        <p class="text-sm font-medium text-sky-700">नोंदणीकृत मशिनरी</p>
         <p class="mt-2 text-3xl font-bold text-blue-900">{{ my_machinery_registered }}</p>
     </div>
-    <div class="rounded-xl border border-amber-200 bg-amber-50 p-5">
-        <p class="text-sm text-amber-700">आजची नोंदणी</p>
-        <p class="mt-2 text-3xl font-bold text-amber-900">{{ my_today_registered }}</p>
-    </div>
-    <div class="rounded-xl border border-violet-200 bg-violet-50 p-5">
-        <p class="text-sm text-violet-700">टीमची एकूण नोंदणी</p>
-        <p class="mt-2 text-3xl font-bold text-violet-900">{{ team_total_registered }}</p>
-    </div>
-    <div class="rounded-xl border border-slate-200 bg-white p-5">
-        <p class="text-sm text-slate-500">सक्रिय एजंट</p>
-        <p class="mt-2 text-3xl font-bold text-slate-900">{{ active_agents }}</p>
-    </div>
 </div>
 
-<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-    <div class="xl:col-span-2 rounded-xl border border-slate-200 bg-white overflow-hidden">
-        <div class="px-5 py-4 border-b border-slate-200">
-            <h3 class="text-base font-semibold text-slate-900">माझ्या अलीकडील नोंदणी</h3>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left">
-                <thead>
-                    <tr class="bg-slate-50 text-xs text-slate-500 uppercase">
-                        <th class="px-4 py-3">मोबाईल</th>
-                        <th class="px-4 py-3">नाव</th>
-                        <th class="px-4 py-3">प्रकार</th>
-                        <th class="px-4 py-3">पत्ता</th>
-                        <th class="px-4 py-3">तयार तारीख</th>
-                    </tr>
-                </thead>
-                <tbody class="text-sm text-slate-700">
-                    {% for registration in recent_registrations %}
-                        <tr class="border-t border-slate-100">
-                            <td class="px-4 py-3 font-medium">{{ registration.registered_user.phone_number }}</td>
-                            <td class="px-4 py-3">{{ registration.registered_user.customer_profile.full_name|default:"-" }}</td>
-                            <td class="px-4 py-3">{{ registration.get_partner_type_display|default:"प्रलंबित" }}</td>
-                            <td class="px-4 py-3">{{ registration.registered_user.location.address|default:"-"|truncatechars:40 }}</td>
-                            <td class="px-4 py-3">{{ registration.created_at|date:"d M Y, h:i A" }}</td>
-                        </tr>
-                    {% empty %}
-                        <tr>
-                            <td colspan="5" class="px-4 py-8 text-center text-slate-500">अद्याप नोंदणी नाही.</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+<section class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div>
+            <h3 class="text-base font-semibold text-slate-900 sm:text-lg">अलीकडील नोंदणी</h3>
+            <p class="text-xs text-slate-500 sm:text-sm">अपूर्ण प्रोफाइलवर क्लिक करून लगेच पूर्ण करा.</p>
         </div>
     </div>
 
-    <div class="rounded-xl border border-slate-200 bg-white overflow-hidden">
-        <div class="px-5 py-4 border-b border-slate-200">
-            <h3 class="text-base font-semibold text-slate-900">टॉप एजंट</h3>
-        </div>
-        <div class="p-4 space-y-3">
-            {% for item in top_agents %}
-                <div class="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
-                    <p class="text-sm font-medium text-slate-700">{{ item.agent__phone_number }}</p>
-                    <p class="text-sm font-semibold text-emerald-700">{{ item.total_registered }}</p>
+    <div class="space-y-3 p-4 md:hidden">
+        {% for registration in recent_registrations %}
+            <article class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-900">{{ registration.registered_user.phone_number }}</p>
+                        <p class="mt-1 text-xs text-slate-500">{{ registration.registered_user.customer_profile.full_name|default:"-" }}</p>
+                    </div>
+                    <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {% if registration.status_tone == 'emerald' %}bg-emerald-100 text-emerald-700{% else %}bg-amber-100 text-amber-700{% endif %}">
+                        {{ registration.status_label }}
+                    </span>
                 </div>
-            {% empty %}
-                <p class="text-sm text-slate-500">ट्रॅकिंग डेटा उपलब्ध नाही.</p>
-            {% endfor %}
-        </div>
+                <p class="mt-3 text-xs text-slate-600">{{ registration.registered_user.location.address|default:"-"|truncatechars:65 }}</p>
+                <p class="mt-1 text-xs text-slate-500">{{ registration.created_at|date:"d M Y, h:i A" }}</p>
+                <div class="mt-3 flex flex-wrap gap-2">
+                    <a href="{{ registration.action_url }}" class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white">
+                        {{ registration.action_label }}
+                    </a>
+                    <a href="{% url 'adminpanel:registration-next' registration.registered_user.id %}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700">
+                        तपशील पहा
+                    </a>
+                </div>
+            </article>
+        {% empty %}
+            <div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">अद्याप नोंदणी नाही.</div>
+        {% endfor %}
     </div>
-</div>
+
+    <div class="hidden overflow-x-auto md:block">
+        <table class="w-full text-left">
+            <thead>
+                <tr class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                    <th class="px-4 py-3">मोबाईल</th>
+                    <th class="px-4 py-3">नाव</th>
+                    <th class="px-4 py-3">स्थिती</th>
+                    <th class="px-4 py-3">पत्ता</th>
+                    <th class="px-4 py-3">तारीख</th>
+                    <th class="px-4 py-3 text-right">कृती</th>
+                </tr>
+            </thead>
+            <tbody class="text-sm text-slate-700">
+                {% for registration in recent_registrations %}
+                    <tr class="border-t border-slate-100">
+                        <td class="px-4 py-3 font-semibold text-slate-900">{{ registration.registered_user.phone_number }}</td>
+                        <td class="px-4 py-3">{{ registration.registered_user.customer_profile.full_name|default:"-" }}</td>
+                        <td class="px-4 py-3">
+                            <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {% if registration.status_tone == 'emerald' %}bg-emerald-100 text-emerald-700{% else %}bg-amber-100 text-amber-700{% endif %}">
+                                {{ registration.status_label }}
+                            </span>
+                        </td>
+                        <td class="max-w-xs px-4 py-3">{{ registration.registered_user.location.address|default:"-"|truncatechars:42 }}</td>
+                        <td class="px-4 py-3">{{ registration.created_at|date:"d M Y, h:i A" }}</td>
+                        <td class="px-4 py-3">
+                            <div class="flex justify-end gap-2">
+                                <a href="{{ registration.action_url }}" class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800">
+                                    {{ registration.action_label }}
+                                </a>
+                                <a href="{% url 'adminpanel:registration-next' registration.registered_user.id %}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100">
+                                    तपशील
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-4 py-10 text-center text-slate-500">अद्याप नोंदणी नाही.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
 {% endblock %}

@@ -3,6 +3,11 @@ from django.contrib import admin
 from .models import AgentPartnerRegistration
 
 
+admin.site.site_header = "Farmo VLE Login"
+admin.site.site_title = "Farmo VLE Admin"
+admin.site.index_title = "VLE Admin Dashboard"
+
+
 @admin.register(AgentPartnerRegistration)
 class AgentPartnerRegistrationAdmin(admin.ModelAdmin):
 	list_display = (

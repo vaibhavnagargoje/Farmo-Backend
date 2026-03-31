@@ -6,7 +6,7 @@ from partners.models import PartnerProfile
 
 class AgentPartnerRegistration(models.Model):
 	"""
-	Tracks which admin agent registered which user, and later links partner profile.
+	Tracks which VLE admin registered which user, and later links partner profile.
 	"""
 
 	agent = models.ForeignKey(
@@ -38,9 +38,9 @@ class AgentPartnerRegistration(models.Model):
 
 	class Meta:
 		ordering = ["-created_at"]
-		verbose_name = "Agent Partner Registration"
-		verbose_name_plural = "Agent Partner Registrations"
+		verbose_name = "VLE Partner Registration"
+		verbose_name_plural = "VLE Partner Registrations"
 
 	def __str__(self):
-		agent_phone = self.agent.phone_number if self.agent else "Unknown Agent"
+		agent_phone = self.agent.phone_number if self.agent else "Unknown VLE"
 		return f"{agent_phone} -> {self.registered_user.phone_number}"

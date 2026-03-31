@@ -3,24 +3,23 @@
 {% block title %}{{ page_title }} | Farmo{% endblock %}
 
 {% block content %}
-<div class="max-w-3xl">
-    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 class="text-2xl font-bold text-slate-900">वापरकर्ता यशस्वीरित्या तयार झाला</h2>
-        <p class="mt-2 text-sm text-slate-600">
-            आता कामगार ऑनबोर्डिंगच्या 2 पायऱ्या पूर्ण करा: कागदपत्रे आणि कामगार तपशील.
-        </p>
+<div class="mx-auto max-w-5xl">
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">Registration Flow</p>
+        <h2 class="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">वापरकर्ता यशस्वीरित्या तयार झाला</h2>
+        <p class="mt-2 text-sm text-slate-600">आता खालील दोन पायऱ्या पूर्ण करा: पार्टनर कागदपत्रे आणि कामगार तपशील.</p>
 
-        <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                <p class="text-slate-500">मोबाईल नंबर</p>
+        <div class="mt-6 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p class="text-xs uppercase tracking-wide text-slate-500">मोबाईल नंबर</p>
                 <p class="mt-1 font-semibold text-slate-900">{{ registration.registered_user.phone_number }}</p>
             </div>
-            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                <p class="text-slate-500">पूर्ण नाव</p>
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p class="text-xs uppercase tracking-wide text-slate-500">पूर्ण नाव</p>
                 <p class="mt-1 font-semibold text-slate-900">{{ registration.registered_user.customer_profile.full_name|default:"-" }}</p>
             </div>
-            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 sm:col-span-2">
-                <p class="text-slate-500">पत्ता</p>
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 sm:col-span-2">
+                <p class="text-xs uppercase tracking-wide text-slate-500">पत्ता</p>
                 <p class="mt-1 font-semibold text-slate-900">{{ registration.registered_user.location.address|default:"-" }}</p>
                 <p class="mt-2 text-xs text-slate-500">
                     कोऑर्डिनेट्स:
@@ -30,16 +29,18 @@
             </div>
         </div>
 
-        <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-            <div class="rounded-lg border px-4 py-3 {% if has_partner_profile %}border-emerald-200 bg-emerald-50{% else %}border-amber-200 bg-amber-50{% endif %}">
-                <p class="text-slate-500">पायरी 2: पार्टनर कागदपत्रे</p>
-                <p class="mt-1 font-semibold {% if has_partner_profile %}text-emerald-800{% else %}text-amber-800{% endif %}">
+        <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div class="rounded-xl border px-4 py-4 {% if has_partner_profile %}border-emerald-200 bg-emerald-50{% else %}border-amber-200 bg-amber-50{% endif %}">
+                <p class="text-xs uppercase tracking-wide text-slate-500">पायरी 2</p>
+                <p class="mt-1 font-semibold text-slate-900">पार्टनर कागदपत्रे</p>
+                <p class="mt-2 text-sm {% if has_partner_profile %}text-emerald-700{% else %}text-amber-700{% endif %}">
                     {% if has_partner_profile %}पूर्ण{% else %}प्रलंबित{% endif %}
                 </p>
             </div>
-            <div class="rounded-lg border px-4 py-3 {% if has_labor_details %}border-emerald-200 bg-emerald-50{% else %}border-amber-200 bg-amber-50{% endif %}">
-                <p class="text-slate-500">पायरी 3: कामगार तपशील</p>
-                <p class="mt-1 font-semibold {% if has_labor_details %}text-emerald-800{% else %}text-amber-800{% endif %}">
+            <div class="rounded-xl border px-4 py-4 {% if has_labor_details %}border-emerald-200 bg-emerald-50{% else %}border-amber-200 bg-amber-50{% endif %}">
+                <p class="text-xs uppercase tracking-wide text-slate-500">पायरी 3</p>
+                <p class="mt-1 font-semibold text-slate-900">कामगार तपशील</p>
+                <p class="mt-2 text-sm {% if has_labor_details %}text-emerald-700{% else %}text-amber-700{% endif %}">
                     {% if has_labor_details %}पूर्ण{% else %}प्रलंबित{% endif %}
                 </p>
             </div>
@@ -47,18 +48,21 @@
 
         <div class="mt-6 flex flex-wrap gap-3">
             <a href="{% url 'adminpanel:create-worker-profile' registration.registered_user.id %}" class="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
-                {% if has_partner_profile %}कामगार कागदपत्रे अपडेट करा{% else %}कामगार प्रोफाइल तयार करा{% endif %}
+                {% if has_partner_profile %}कागदपत्रे अपडेट करा{% else %} प्रोफाइल तयार करा{% endif %}
             </a>
             <a href="{% url 'adminpanel:worker-details' registration.registered_user.id %}" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
                 {% if has_labor_details %}कामगार तपशील अपडेट करा{% else %}कामगार तपशील भरा{% endif %}
             </a>
-            <a href="{% url 'adminpanel:list-machinery' registration.registered_user.id %}" class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+            <a href="{% url 'adminpanel:list-machinery' registration.registered_user.id %}" class="inline-flex items-center justify-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700">
                 मशिनरी लिस्ट करा
             </a>
             <a href="{% url 'adminpanel:register-user' %}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
                 आणखी वापरकर्ता नोंदणी
             </a>
+            <a href="{% url 'adminpanel:dashboard' %}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                डॅशबोर्ड
+            </a>
         </div>
-    </div>
+    </section>
 </div>
 {% endblock %}
