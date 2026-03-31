@@ -1,0 +1,65 @@
+{% extends 'adminpanel/base.html' %}
+
+{% block title %}{{ page_title }} | Farmo{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+    <div class="mb-6">
+        <h2 class="text-2xl font-bold text-slate-900">{{ page_title }}</h2>
+        <p class="mt-1 text-sm text-slate-500">
+            पायरी 2: कामगार ऑनबोर्डिंगसाठी कागदपत्रे अपलोड करा.
+        </p>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="mb-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+            <p><span class="font-semibold">वापरकर्ता:</span> {{ registration.registered_user.phone_number }}</p>
+            <p class="mt-1"><span class="font-semibold">नाव:</span> {{ registration.registered_user.customer_profile.full_name|default:"-" }}</p>
+            <p class="mt-2 text-xs text-slate-500">आधार कार्ड (समोर + मागे) किंवा पॅन कार्ड यापैकी किमान एक आवश्यक आहे.</p>
+        </div>
+
+        <form method="post" enctype="multipart/form-data" class="space-y-5">
+            {% csrf_token %}
+
+            <div>
+                <label for="{{ form.aadhar_card_front.id_for_label }}" class="block text-sm font-medium text-slate-700">आधार कार्ड समोरील बाजू</label>
+                {{ form.aadhar_card_front }}
+                {% if form.aadhar_card_front.errors %}
+                    <p class="mt-1 text-xs text-rose-600">{{ form.aadhar_card_front.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div>
+                <label for="{{ form.aadhar_card_back.id_for_label }}" class="block text-sm font-medium text-slate-700">आधार कार्ड मागील बाजू</label>
+                {{ form.aadhar_card_back }}
+                {% if form.aadhar_card_back.errors %}
+                    <p class="mt-1 text-xs text-rose-600">{{ form.aadhar_card_back.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div>
+                <label for="{{ form.pan_card.id_for_label }}" class="block text-sm font-medium text-slate-700">पॅन कार्ड</label>
+                {{ form.pan_card }}
+                {% if form.pan_card.errors %}
+                    <p class="mt-1 text-xs text-rose-600">{{ form.pan_card.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            {% if form.non_field_errors %}
+                <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    {{ form.non_field_errors.0 }}
+                </div>
+            {% endif %}
+
+            <div class="flex flex-wrap items-center gap-3 pt-2">
+                <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+                    कागदपत्रे जतन करा
+                </button>
+                <a href="{% url 'adminpanel:registration-next' registration.registered_user.id %}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                    मागे
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

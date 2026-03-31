@@ -1,0 +1,138 @@
+{% extends 'adminpanel/base.html' %}
+
+{% block title %}{{ page_title }} | Farmo{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+    <div class="mb-6">
+        <h2 class="text-2xl font-bold text-slate-900">{{ page_title }}</h2>
+        <p class="mt-1 text-sm text-slate-500">
+            पायरी 1: वापरकर्ता खाते तयार करा आणि आवश्यक पत्ता व कोऑर्डिनेट्स लोकेशन टेबलमध्ये जतन करा.
+        </p>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <form method="post" class="space-y-5">
+            {% csrf_token %}
+
+            <div>
+                <label for="{{ form.phone_number.id_for_label }}" class="block text-sm font-medium text-slate-700">मोबाईल नंबर</label>
+                {{ form.phone_number }}
+                {% if form.phone_number.errors %}
+                    <p class="mt-1 text-xs text-rose-600">{{ form.phone_number.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div>
+                <label for="{{ form.email.id_for_label }}" class="block text-sm font-medium text-slate-700">ईमेल (ऐच्छिक)</label>
+                {{ form.email }}
+                {% if form.email.errors %}
+                    <p class="mt-1 text-xs text-rose-600">{{ form.email.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div>
+                <label for="{{ form.full_name.id_for_label }}" class="block text-sm font-medium text-slate-700">पूर्ण नाव</label>
+                {{ form.full_name }}
+                {% if form.full_name.errors %}
+                    <p class="mt-1 text-xs text-rose-600">{{ form.full_name.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div>
+                <label for="{{ form.address.id_for_label }}" class="block text-sm font-medium text-slate-700">पत्ता</label>
+                {{ form.address }}
+                {% if form.address.errors %}
+                    <p class="mt-1 text-xs text-rose-600">{{ form.address.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p class="text-sm text-slate-600">कोऑर्डिनेट्स आवश्यक आहेत. Fetch करा किंवा स्वतः टाका.</p>
+                    <button type="button" id="fetch-location-btn" class="inline-flex items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100">
+                        सध्याचे कोऑर्डिनेट्स घ्या
+                    </button>
+                </div>
+
+                <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label for="{{ form.latitude.id_for_label }}" class="block text-sm font-medium text-slate-700">अक्षांश</label>
+                        {{ form.latitude }}
+                        {% if form.latitude.errors %}
+                            <p class="mt-1 text-xs text-rose-600">{{ form.latitude.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label for="{{ form.longitude.id_for_label }}" class="block text-sm font-medium text-slate-700">रेखांश</label>
+                        {{ form.longitude }}
+                        {% if form.longitude.errors %}
+                            <p class="mt-1 text-xs text-rose-600">{{ form.longitude.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {% if form.non_field_errors %}
+                <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    {{ form.non_field_errors.0 }}
+                </div>
+            {% endif %}
+
+            <div class="flex flex-wrap items-center gap-3 pt-2">
+                <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+                    वापरकर्ता तयार करा
+                </button>
+                <a href="{% url 'adminpanel:dashboard' %}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                    रद्द करा
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    const fetchBtn = document.getElementById("fetch-location-btn");
+    if (!fetchBtn) {
+        return;
+    }
+
+    const latInput = document.getElementById("{{ form.latitude.id_for_label }}");
+    const lngInput = document.getElementById("{{ form.longitude.id_for_label }}");
+
+    fetchBtn.addEventListener("click", function () {
+        if (!navigator.geolocation) {
+            window.alert("या ब्राउझरमध्ये लोकेशन सुविधा उपलब्ध नाही.");
+            return;
+        }
+
+        fetchBtn.disabled = true;
+        fetchBtn.textContent = "घेत आहे...";
+
+        navigator.geolocation.getCurrentPosition(
+            function (position) {
+                if (latInput) {
+                    latInput.value = position.coords.latitude.toFixed(6);
+                }
+                if (lngInput) {
+                    lngInput.value = position.coords.longitude.toFixed(6);
+                }
+                fetchBtn.disabled = false;
+                fetchBtn.textContent = "सध्याचे कोऑर्डिनेट्स घ्या";
+            },
+            function () {
+                window.alert("लोकेशन मिळाले नाही. कृपया अक्षांश आणि रेखांश हाताने टाका.");
+                fetchBtn.disabled = false;
+                fetchBtn.textContent = "सध्याचे कोऑर्डिनेट्स घ्या";
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 0,
+            }
+        );
+    });
+})();
+</script>
+{% endblock %}

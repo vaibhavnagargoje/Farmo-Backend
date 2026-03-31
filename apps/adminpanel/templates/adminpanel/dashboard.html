@@ -1,149 +1,93 @@
 {% extends 'adminpanel/base.html' %}
 
-{% block title %}Dashboard | Farmo Admin{% endblock %}
+{% block title %}एजंट डॅशबोर्ड | Farmo{% endblock %}
 
 {% block content %}
-<div class="mb-8">
-    <h2 class="text-2xl font-bold text-gray-900">{{ page_title|default:"Dashboard" }}</h2>
-    <p class="text-gray-500 text-sm mt-1">Overview of Farmo platform activities</p>
-</div>
-
-<!-- Stat Cards -->
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <!-- Total Users -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div class="flex items-center justify-between">
-            <h3 class="text-gray-500 text-sm font-medium">Total Users</h3>
-            <span class="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-            </span>
-        </div>
-        <p class="text-3xl font-bold text-gray-900 mt-4">{{ total_users }}</p>
+<div class="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div>
+        <h2 class="text-2xl font-bold text-slate-900">{{ page_title }}</h2>
+        <p class="text-sm text-slate-500">तुमच्या नोंदणी कामाचा मागोवा ठेवा आणि नवीन वापरकर्ते जोडा.</p>
     </div>
-
-    <!-- Active Partners -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div class="flex items-center justify-between">
-            <h3 class="text-gray-500 text-sm font-medium">Active Partners</h3>
-            <span class="p-2 bg-green-50 text-green-600 rounded-lg">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-            </span>
-        </div>
-        <p class="text-3xl font-bold text-gray-900 mt-4">{{ active_partners }}</p>
-    </div>
-
-    <!-- Total Bookings -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div class="flex items-center justify-between">
-            <h3 class="text-gray-500 text-sm font-medium">Total Bookings</h3>
-            <span class="p-2 bg-purple-50 text-purple-600 rounded-lg">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-            </span>
-        </div>
-        <p class="text-3xl font-bold text-gray-900 mt-4">{{ total_bookings }}</p>
-    </div>
-
-    <!-- Total Labors -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div class="flex items-center justify-between">
-            <h3 class="text-gray-500 text-sm font-medium">Labors</h3>
-            <span class="p-2 bg-orange-50 text-orange-600 rounded-lg">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-            </span>
-        </div>
-        <p class="text-3xl font-bold text-gray-900 mt-4">{{ labor_count }}</p>
+    <div class="flex flex-wrap gap-3">
+        <a href="{% url 'adminpanel:register-user' %}" class="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">वापरकर्ता नोंदणी</a>
     </div>
 </div>
 
-<!-- Secondary Stats Row -->
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <!-- Pending Partners -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div class="flex items-center justify-between">
-            <h3 class="text-gray-500 text-sm font-medium">Pending Partners (KYC)</h3>
-            <span class="p-2 bg-yellow-50 text-yellow-600 rounded-lg">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            </span>
-        </div>
-        <p class="text-2xl font-bold text-gray-900 mt-3">{{ pending_partners }}</p>
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <p class="text-sm text-slate-500">माझी एकूण नोंदणी</p>
+        <p class="mt-2 text-3xl font-bold text-slate-900">{{ my_total_registered }}</p>
     </div>
-
-    <!-- Rejected Partners -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div class="flex items-center justify-between">
-            <h3 class="text-gray-500 text-sm font-medium">Rejected Partners</h3>
-            <span class="p-2 bg-red-50 text-red-600 rounded-lg">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-            </span>
-        </div>
-        <p class="text-2xl font-bold text-gray-900 mt-3">{{ rejected_partners }}</p>
+    <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+        <p class="text-sm text-emerald-700">नोंदणीकृत कामगार</p>
+        <p class="mt-2 text-3xl font-bold text-emerald-900">{{ my_worker_registered }}</p>
     </div>
-
-    <!-- Pending Services -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div class="flex items-center justify-between">
-            <h3 class="text-gray-500 text-sm font-medium">Pending Services</h3>
-            <span class="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            </span>
-        </div>
-        <p class="text-2xl font-bold text-gray-900 mt-3">{{ pending_services }}</p>
+    <div class="rounded-xl border border-blue-200 bg-blue-50 p-5">
+        <p class="text-sm text-blue-700">नोंदणीकृत मशिनरी</p>
+        <p class="mt-2 text-3xl font-bold text-blue-900">{{ my_machinery_registered }}</p>
     </div>
-
-    <!-- Inactive Services -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div class="flex items-center justify-between">
-            <h3 class="text-gray-500 text-sm font-medium">Inactive/Hidden Services</h3>
-            <span class="p-2 bg-gray-50 text-gray-600 rounded-lg">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path></svg>
-            </span>
-        </div>
-        <p class="text-2xl font-bold text-gray-900 mt-3">{{ inactive_services }}</p>
+    <div class="rounded-xl border border-amber-200 bg-amber-50 p-5">
+        <p class="text-sm text-amber-700">आजची नोंदणी</p>
+        <p class="mt-2 text-3xl font-bold text-amber-900">{{ my_today_registered }}</p>
+    </div>
+    <div class="rounded-xl border border-violet-200 bg-violet-50 p-5">
+        <p class="text-sm text-violet-700">टीमची एकूण नोंदणी</p>
+        <p class="mt-2 text-3xl font-bold text-violet-900">{{ team_total_registered }}</p>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <p class="text-sm text-slate-500">सक्रिय एजंट</p>
+        <p class="mt-2 text-3xl font-bold text-slate-900">{{ active_agents }}</p>
     </div>
 </div>
 
-<!-- Main Area -->
-<div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-    <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-        <h3 class="text-lg font-semibold text-gray-800">Recent Bookings</h3>
-    </div>
-    <div class="p-6">
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <div class="xl:col-span-2 rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-200">
+            <h3 class="text-base font-semibold text-slate-900">माझ्या अलीकडील नोंदणी</h3>
+        </div>
         <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
+            <table class="w-full text-left">
                 <thead>
-                    <tr class="text-gray-400 text-xs uppercase bg-gray-50/50">
-                        <th class="px-4 py-3 font-medium rounded-l-lg">ID</th>
-                        <th class="px-4 py-3 font-medium">Customer</th>
-                        <th class="px-4 py-3 font-medium">Service</th>
-                        <th class="px-4 py-3 font-medium">Status</th>
-                        <th class="px-4 py-3 font-medium">Date</th>
-                        <th class="px-4 py-3 font-medium rounded-r-lg">Type</th>
+                    <tr class="bg-slate-50 text-xs text-slate-500 uppercase">
+                        <th class="px-4 py-3">मोबाईल</th>
+                        <th class="px-4 py-3">नाव</th>
+                        <th class="px-4 py-3">प्रकार</th>
+                        <th class="px-4 py-3">पत्ता</th>
+                        <th class="px-4 py-3">तयार तारीख</th>
                     </tr>
                 </thead>
-                <tbody class="text-sm">
-                    {% for booking in recent_bookings %}
-                    <tr class="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                        <td class="px-4 py-4 font-medium text-gray-900">#BK-{{ booking.id|stringformat:"s"|slice:":6" }}</td>
-                        <td class="px-4 py-4 text-gray-600">{{ booking.customer.user.phone_number }}</td>
-                        <td class="px-4 py-4 text-gray-600">{{ booking.service.title|default:"Instant Service" }}</td>
-                        <td class="px-4 py-4">
-                            <span class="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full font-medium">{{ booking.status }}</span>
-                        </td>
-                        <td class="px-4 py-4 text-gray-500">{{ booking.created_at|date:"M d, Y H:i" }}</td>
-                        <td class="px-4 py-4">
-                            <span class="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">{{ booking.booking_type }}</span>
-                        </td>
-                    </tr>
+                <tbody class="text-sm text-slate-700">
+                    {% for registration in recent_registrations %}
+                        <tr class="border-t border-slate-100">
+                            <td class="px-4 py-3 font-medium">{{ registration.registered_user.phone_number }}</td>
+                            <td class="px-4 py-3">{{ registration.registered_user.customer_profile.full_name|default:"-" }}</td>
+                            <td class="px-4 py-3">{{ registration.get_partner_type_display|default:"प्रलंबित" }}</td>
+                            <td class="px-4 py-3">{{ registration.registered_user.location.address|default:"-"|truncatechars:40 }}</td>
+                            <td class="px-4 py-3">{{ registration.created_at|date:"d M Y, h:i A" }}</td>
+                        </tr>
                     {% empty %}
-                    <tr>
-                        <td colspan="6" class="px-4 py-8 text-center text-gray-500">No recent bookings found.</td>
-                    </tr>
+                        <tr>
+                            <td colspan="5" class="px-4 py-8 text-center text-slate-500">अद्याप नोंदणी नाही.</td>
+                        </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
-        <div class="mt-4 text-right">
-            <a href="{% url 'adminpanel:bookings' %}" class="text-sm text-green-600 hover:text-green-700 font-medium">View All Bookings &rarr;</a>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-200">
+            <h3 class="text-base font-semibold text-slate-900">टॉप एजंट</h3>
+        </div>
+        <div class="p-4 space-y-3">
+            {% for item in top_agents %}
+                <div class="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
+                    <p class="text-sm font-medium text-slate-700">{{ item.agent__phone_number }}</p>
+                    <p class="text-sm font-semibold text-emerald-700">{{ item.total_registered }}</p>
+                </div>
+            {% empty %}
+                <p class="text-sm text-slate-500">ट्रॅकिंग डेटा उपलब्ध नाही.</p>
+            {% endfor %}
         </div>
     </div>
 </div>
