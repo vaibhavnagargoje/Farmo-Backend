@@ -121,7 +121,7 @@ def dashboard(request):
 @user_passes_test(is_agent, login_url="/admin/login/")
 @require_http_methods(["GET", "POST"])
 def register_user(request):
-    form = AgentUserRegistrationForm(request.POST or None)
+    form = AgentUserRegistrationForm(request.POST or None, request.FILES or None)
 
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data
@@ -138,7 +138,10 @@ def register_user(request):
 
                 CustomerProfile.objects.update_or_create(
                     user=user,
-                    defaults={"full_name": data["full_name"]},
+                    defaults={
+                        "full_name": data["full_name"],
+                        "profile_picture": data.get("profile_picture"),
+                    },
                 )
 
                 UserLocation.objects.update_or_create(

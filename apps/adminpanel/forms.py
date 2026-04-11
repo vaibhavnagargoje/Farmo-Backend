@@ -38,6 +38,11 @@ class AgentUserRegistrationForm(forms.Form):
         label="पूर्ण नाव",
         error_messages={"required": "पूर्ण नाव आवश्यक आहे."},
     )
+    profile_picture = forms.ImageField(
+        required=False,
+        label="प्रोफाइल फोटो (ऐच्छिक)",
+        error_messages={"invalid_image": "कृपया वैध फोटो फाइल अपलोड करा."},
+    )
     address = forms.CharField(
         label="पत्ता",
         widget=forms.Textarea(attrs={"rows": 3}),
@@ -72,6 +77,11 @@ class AgentUserRegistrationForm(forms.Form):
             "text-sm text-slate-900 focus:border-emerald-500 focus:outline-none "
             "focus:ring-2 focus:ring-emerald-200"
         )
+        file_input_classes = (
+            "mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 "
+            "text-sm text-slate-900 file:mr-3 file:rounded-md file:border-0 "
+            "file:bg-slate-100 file:px-3 file:py-2 file:text-slate-700"
+        )
 
         self.fields["phone_number"].widget.attrs.update(
             {
@@ -89,6 +99,12 @@ class AgentUserRegistrationForm(forms.Form):
             {
                 "class": field_classes,
                 "placeholder": "पूर्ण नाव टाका",
+            }
+        )
+        self.fields["profile_picture"].widget.attrs.update(
+            {
+                "class": file_input_classes,
+                "accept": "image/*",
             }
         )
         self.fields["address"].widget.attrs.update(
