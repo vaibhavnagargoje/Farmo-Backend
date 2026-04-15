@@ -2,6 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import (
@@ -238,10 +239,12 @@ class GoogleAuthView(APIView):
 class ProfileUpdateView(APIView):
     """
     Update basic profile fields after first login.
-    Body: { "full_name": "Rahul Kumar" }
+    Body (JSON): { "full_name": "Rahul Kumar" }
+    Body (multipart/form-data): full_name + optional profile_picture
     Location data is managed separately via /locations/user-location/ endpoint.
     """
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get(self, request):
         """Get customer profile and location data."""
@@ -284,6 +287,8 @@ class ProfileUpdateView(APIView):
         if profile:
             if "full_name" in data:
                 profile.full_name = data.get("full_name", profile.full_name)
+            if "profile_picture" in data:
+                profile.profile_picture = data.get("profile_picture")
             profile.save()
 
         # Build response with location from UserLocation

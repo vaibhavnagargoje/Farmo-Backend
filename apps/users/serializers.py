@@ -68,6 +68,24 @@ class ProfileUpdateSerializer(serializers.Serializer):
     Location data is handled separately via the locations app (UserLocation).
     """
     full_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    profile_picture = serializers.ImageField(required=False, allow_null=True)
+
+    def validate_profile_picture(self, value):
+        # Keep upload limits aligned with onboarding document image constraints.
+        max_size_bytes = 5 * 1024 * 1024
+        allowed_content_types = {'image/jpeg', 'image/png', 'image/webp'}
+
+        if value is None:
+            return value
+
+        if getattr(value, 'size', 0) > max_size_bytes:
+            raise serializers.ValidationError('Profile photo must be 5MB or smaller.')
+
+        content_type = getattr(value, 'content_type', '')
+        if content_type and content_type not in allowed_content_types:
+            raise serializers.ValidationError('Only JPG, PNG, or WEBP images are allowed.')
+
+        return value
 
 
 class CustomerProfileSerializer(serializers.Serializer):
