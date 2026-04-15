@@ -40,7 +40,7 @@ class SendOTPView(APIView):
             
             # 1. Generate OTP
             if email.lower() == 'test@farmo.in':
-                otp = '123456'
+                otp = '1234'
             else:
                 otp = str(random.randint(1000, 9999))
             
