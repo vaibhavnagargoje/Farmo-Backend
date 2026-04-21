@@ -27,6 +27,15 @@ class User(AbstractUser):
     class Language(models.TextChoices):
         ENGLISH = 'en', 'English'
         MARATHI = 'mr', 'मराठी'
+        HINDI = 'hi', 'हिंदी'
+        GUJARATI = 'gu', 'ગુજરાતી'
+        PUNJABI = 'pa', 'ਪੰਜਾਬੀ'
+        BENGALI = 'bn', 'বাংলা'
+        TELUGU = 'te', 'తెలుగు'
+        TAMIL = 'ta', 'தமிழ்'
+        KANNADA = 'kn', 'ಕನ್ನಡ'
+        MALAYALAM = 'ml', 'മലയാളം'
+        ODIA = 'or', 'ଓଡ଼ିଆ'
 
     preferred_language = models.CharField(
         max_length=5, choices=Language.choices, default=Language.ENGLISH,
