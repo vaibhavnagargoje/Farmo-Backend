@@ -87,13 +87,15 @@ class ServiceListSerializer(serializers.ModelSerializer):
     thumbnail = serializers.SerializerMethodField()
     partner_location = serializers.SerializerMethodField()
     images = ServiceImageSerializer(many=True, read_only=True)
+    # Distance in km from user's location — populated by Haversine annotation in ServiceListView
+    distance_km = serializers.SerializerMethodField()
 
     class Meta:
         model = Service
         fields = [
             'id', 'title', 'description', 'price', 'price_unit', 'category', 'category_name',
             'partner_name', 'partner_rating', 'partner_profile_picture', 'status', 'is_available', 'thumbnail',
-            'partner_location', 'service_radius_km', 'images'
+            'partner_location', 'service_radius_km', 'images', 'distance_km'
         ]
 
     def get_thumbnail(self, obj):
@@ -133,6 +135,13 @@ class ServiceListSerializer(serializers.ModelSerializer):
                 'longitude': str(loc.longitude),
                 'address': loc.address or '',
             }
+        return None
+
+    def get_distance_km(self, obj):
+        """Return distance annotated by ServiceListView's Haversine query, rounded to 1 decimal."""
+        dist = getattr(obj, 'distance', None)
+        if dist is not None:
+            return round(float(dist), 1)
         return None
 
 
