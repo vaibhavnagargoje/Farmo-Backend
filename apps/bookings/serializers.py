@@ -58,7 +58,7 @@ class BookingDetailSerializer(serializers.ModelSerializer):
             'scheduled_date', 'scheduled_time', 'expires_at',
             'broadcast_count', 'current_broadcast_radius', 'assigned_at',
             'work_started_at', 'work_completed_at',
-            'start_job_otp', 'end_job_otp',
+            'start_job_otp', 'end_job_otp', 'job_otp', 'otp_mode_snapshot',
             'address', 'lat', 'lng',
             'quantity', 'price_unit', 'unit_price', 'total_amount',
             'note', 'cancellation_reason', 'cancelled_by',
@@ -68,20 +68,37 @@ class BookingDetailSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         request = self.context.get('request')
-        
-        # Hide OTPs based on who is viewing
-        if request and request.user:
-            # Customer sees start_job_otp (gives to provider)
-            # Provider sees end_job_otp (gives to customer)
-            if hasattr(request.user, 'partner_profile') and request.user.partner_profile == instance.provider:
-                # Provider viewing - hide start_job_otp, show end_job_otp
-                data['start_job_otp'] = '****' if data['start_job_otp'] else None
+        effective_mode = instance.otp_mode_snapshot or 'DUAL'
+
+        # Determine viewer role
+        is_provider = (
+            request and request.user and
+            hasattr(request.user, 'partner_profile') and
+            request.user.partner_profile == instance.provider
+        )
+
+        if effective_mode == 'SINGLE':
+            # --- SINGLE OTP mode ---
+            # Customer: always sees job_otp (so they can share it)
+            # Provider: job_otp is hidden (they enter what the customer gives them)
+            if is_provider:
+                data['job_otp'] = '****' if data.get('job_otp') else None
+            # Neither role needs start/end OTPs in SINGLE mode
+            data['start_job_otp'] = None
+            data['end_job_otp'] = None
+        else:
+            # --- DUAL OTP mode (existing behaviour) ---
+            # job_otp not applicable — mask it
+            data['job_otp'] = None
+            if is_provider:
+                # Provider viewing — hide start OTP, show end OTP
+                data['start_job_otp'] = '****' if data.get('start_job_otp') else None
             else:
-                # Customer viewing - show start_job_otp always
-                # Show end_job_otp only when job is IN_PROGRESS (customer gives it to provider to complete)
+                # Customer viewing — show start OTP always
+                # Show end OTP only when job is IN_PROGRESS
                 if instance.status != Booking.Status.IN_PROGRESS:
-                    data['end_job_otp'] = '****' if data['end_job_otp'] else None
-        
+                    data['end_job_otp'] = '****' if data.get('end_job_otp') else None
+
         return data
 
 
@@ -185,28 +202,47 @@ class BookingStatusUpdateSerializer(serializers.Serializer):
     def validate(self, attrs):
         action = attrs.get('action')
         booking = self.context.get('booking')
-        
-        if action == 'accept' and booking.status != Booking.Status.PENDING:
-            raise serializers.ValidationError("Can only accept PENDING bookings.")
-        
+
+        # Determine effective mode from the booking's snapshot (protects mid-flow switches)
+        effective_mode = booking.otp_mode_snapshot or 'DUAL'
+
+        if action == 'accept':
+            if booking.status != Booking.Status.PENDING:
+                raise serializers.ValidationError("Can only accept PENDING bookings.")
+
         if action == 'reject':
             if booking.status != Booking.Status.PENDING:
                 raise serializers.ValidationError("Can only reject PENDING bookings.")
             if not attrs.get('rejection_reason'):
                 raise serializers.ValidationError({"rejection_reason": "Required when rejecting."})
-        
+
         if action == 'start':
+            if effective_mode == 'SINGLE':
+                raise serializers.ValidationError(
+                    "'start' action is not applicable in Single OTP mode. "
+                    "Use 'complete' with the job OTP instead."
+                )
             if booking.status != Booking.Status.CONFIRMED:
                 raise serializers.ValidationError("Can only start CONFIRMED bookings.")
             if attrs.get('otp') != booking.start_job_otp:
                 raise serializers.ValidationError({"otp": "Invalid start OTP."})
-        
+
         if action == 'complete':
-            if booking.status != Booking.Status.IN_PROGRESS:
-                raise serializers.ValidationError("Can only complete IN_PROGRESS bookings.")
-            if attrs.get('otp') != booking.end_job_otp:
-                raise serializers.ValidationError({"otp": "Invalid completion OTP."})
-        
+            if effective_mode == 'SINGLE':
+                # In SINGLE mode: complete directly from CONFIRMED (skip IN_PROGRESS)
+                if booking.status not in (Booking.Status.CONFIRMED, Booking.Status.IN_PROGRESS):
+                    raise serializers.ValidationError(
+                        "Can only complete a CONFIRMED booking in Single OTP mode."
+                    )
+                if attrs.get('otp') != booking.job_otp:
+                    raise serializers.ValidationError({"otp": "Invalid OTP."})
+            else:
+                # DUAL mode: must be IN_PROGRESS and use end OTP
+                if booking.status != Booking.Status.IN_PROGRESS:
+                    raise serializers.ValidationError("Can only complete IN_PROGRESS bookings.")
+                if attrs.get('otp') != booking.end_job_otp:
+                    raise serializers.ValidationError({"otp": "Invalid completion OTP."})
+
         return attrs
 
 

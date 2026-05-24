@@ -13,11 +13,15 @@ from .views import (
     ProviderInstantRequestListView,
     ProviderInstantRequestAcceptView,
     ProviderInstantRequestDeclineView,
+    AppSettingsView,
 )
 
 app_name = 'bookings'
 
 urlpatterns = [
+    # Public settings endpoint (OTP mode toggle, etc.)
+    path('settings/', AppSettingsView.as_view(), name='app-settings'),
+
     # Instant Booking Routes (must be before <str:booking_id> catch-all)
     path('instant/', InstantBookingCreateView.as_view(), name='instant-booking-create'),
     path('instant/<str:booking_id>/status/', InstantBookingStatusView.as_view(), name='instant-booking-status'),

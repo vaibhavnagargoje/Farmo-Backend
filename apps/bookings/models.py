@@ -81,6 +81,15 @@ class Booking(models.Model):
     # --- SECURITY (OTPs) ---
     start_job_otp = models.CharField(max_length=6, null=True, blank=True)
     end_job_otp = models.CharField(max_length=6, null=True, blank=True)
+    # Single-OTP mode: one code generated at order creation
+    job_otp = models.CharField(max_length=6, null=True, blank=True)
+    # Snapshot of the OTP mode at the time this booking was created.
+    # This insulates in-flight bookings from admin mode-switches mid-flow.
+    otp_mode_snapshot = models.CharField(
+        max_length=10,
+        null=True, blank=True,
+        help_text="OTP mode that was active when this booking was created (SINGLE or DUAL)."
+    )
 
     # Location
     address = models.TextField()
@@ -159,11 +168,25 @@ class Booking(models.Model):
                     timeout = self.category.instant_timeout_minutes
                 self.expires_at = timezone.now() + timezone.timedelta(minutes=timeout)
             
-        # Generate OTPs if confirmed
+        # --- OTP generation logic (mode-aware) ---
+        import random
+        from adminpanel.models import AppSettings
+        app_settings = AppSettings.get()
+        current_mode = app_settings.otp_mode
+
+        # On first save (creation): snapshot the mode and generate SINGLE otp if needed
+        is_new = not self.pk
+        if is_new:
+            self.otp_mode_snapshot = current_mode
+            if current_mode == AppSettings.OTP_MODE_SINGLE and not self.job_otp:
+                self.job_otp = str(random.randint(1000, 9999))
+
+        # On CONFIRMED transition: generate Dual OTPs if this booking was created under DUAL mode
+        effective_mode = self.otp_mode_snapshot or current_mode
         if self.status == self.Status.CONFIRMED and not self.start_job_otp:
-            import random
-            self.start_job_otp = str(random.randint(1000, 9999))
-            self.end_job_otp = str(random.randint(1000, 9999))
+            if effective_mode == AppSettings.OTP_MODE_DUAL:
+                self.start_job_otp = str(random.randint(1000, 9999))
+                self.end_job_otp = str(random.randint(1000, 9999))
         
         # Auto-Calculate Total
         if not self.total_amount and self.unit_price and self.quantity:

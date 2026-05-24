@@ -2,7 +2,7 @@
 from rest_framework import status, generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db import transaction
@@ -152,41 +152,45 @@ class ProviderBookingActionView(APIView):
         
         if serializer.is_valid():
             action = serializer.validated_data['action']
-            
+
+            # Determine effective mode from the booking's snapshot
+            effective_mode = booking.otp_mode_snapshot or 'DUAL'
+
             if action == 'accept':
                 booking.status = Booking.Status.CONFIRMED
-                # OTPs are auto-generated in the model's save() method
+                # OTPs auto-generated in model's save() based on mode snapshot
                 message = "Booking accepted."
-            
+
             elif action == 'reject':
                 booking.status = Booking.Status.REJECTED
                 booking.cancellation_reason = serializer.validated_data.get('rejection_reason')
                 booking.cancelled_by = request.user
                 message = "Booking rejected."
-            
+
             elif action == 'start':
+                # Serializer already rejects 'start' in SINGLE mode — safe to proceed
                 booking.status = Booking.Status.IN_PROGRESS
                 booking.work_started_at = timezone.now()
                 message = "Job started."
-            
+
             elif action == 'complete':
                 booking.status = Booking.Status.COMPLETED
                 booking.work_completed_at = timezone.now()
-                
+
                 # Update partner stats
                 partner = request.user.partner_profile
                 partner.jobs_completed += 1
                 partner.save()
-                
+
                 message = "Job completed successfully."
-            
+
             booking.save()
-            
+
             return Response({
                 "message": message,
                 "booking": BookingDetailSerializer(booking, context={'request': request}).data
             })
-        
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -438,3 +442,20 @@ class ProviderInstantRequestDeclineView(APIView):
         instant_req.save(update_fields=['status', 'responded_at'])
 
         return Response({"message": "Request declined."})
+
+
+# --- App Settings (Public) ---
+class AppSettingsView(APIView):
+    """
+    GET: Returns global app configuration including the current OTP mode.
+    Public endpoint — no authentication required.
+    Response: { "otp_mode": "SINGLE" | "DUAL" }
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from adminpanel.models import AppSettings
+        settings_obj = AppSettings.get()
+        return Response({
+            "otp_mode": settings_obj.otp_mode,
+        })
