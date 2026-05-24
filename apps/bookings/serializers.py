@@ -28,7 +28,8 @@ class BookingListSerializer(serializers.ModelSerializer):
             'service_title', 'category_name', 'category_name_translations', 'provider_name', 'customer_phone',
             'scheduled_date', 'scheduled_time', 'quantity', 'price_unit', 'unit_price', 'total_amount', 'expires_at',
             'address', 'lat', 'lng', 'note', 'cancellation_reason',
-            'broadcast_count', 'assigned_at', 'created_at'
+            'broadcast_count', 'assigned_at', 'created_at',
+            'otp_mode_snapshot',
         ]
 
     def get_service_title(self, obj):
