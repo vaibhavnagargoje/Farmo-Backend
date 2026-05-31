@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.pagination import PageNumberPagination
 from django.shortcuts import get_object_or_404
 
 from .models import Category, Service, ServiceImage
@@ -27,32 +28,56 @@ class CategoryListView(generics.ListAPIView):
     permission_classes = []  # Public
 
 
+# --- Pagination ---
+class ServiceListPagination(PageNumberPagination):
+    """
+    Standard 20-per-page pagination for service listings.
+    Clients may override page size (up to 100) via ?page_size=N.
+    """
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 # --- Service Views (Public) ---
 class ServiceListView(generics.ListAPIView):
     """
     GET: List all active services with filters and search.
     Publicly accessible for customers browsing.
+
+    Query params:
+      - category (slug)       : filter by category
+      - lat, lng (float)      : user coordinates for distance annotation & ordering
+      - distance (km, float)  : optional radius filter; omit (or pass a large value)
+                                to get all providers sorted nearest-first
+      - price_unit            : filter by price unit
+      - search                : full-text search on title/description
+      - page, page_size       : pagination controls
     """
     serializer_class = ServiceListSerializer
     permission_classes = []  # Public
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    pagination_class = ServiceListPagination
+    filter_backends = [filters.SearchFilter]
     search_fields = ['title', 'description', 'partner__user__phone_number']
-    ordering_fields = ['price', 'created_at', 'partner__rating']
-    ordering = ['-created_at']
 
     def get_queryset(self):
-        queryset = Service.objects.filter(status=Service.Status.ACTIVE, is_available=True, partner__is_available=True)
-        
-        # Manual filtering for category
+        queryset = Service.objects.filter(
+            status=Service.Status.ACTIVE,
+            is_available=True,
+            partner__is_available=True,
+        )
+
+        # -- Category filter --
         category_slug = self.request.query_params.get('category')
         if category_slug:
             queryset = queryset.filter(category__slug=category_slug)
-        
+
+        # -- Price-unit filter --
         price_unit = self.request.query_params.get('price_unit')
         if price_unit:
             queryset = queryset.filter(price_unit=price_unit.upper())
-        
-        # Location-based filtering using Haversine formula
+
+        # -- Location-based distance annotation & ordering --
         lat = self.request.query_params.get('lat')
         lng = self.request.query_params.get('lng')
         distance_param = self.request.query_params.get('distance')
@@ -61,9 +86,8 @@ class ServiceListView(generics.ListAPIView):
             try:
                 user_lat = float(lat)
                 user_lng = float(lng)
-                radius = float(distance_param) if distance_param else 5.0  # default 5km
 
-                # Only include services whose partner has location data
+                # Only include partners that have saved location data
                 queryset = queryset.exclude(
                     partner__user__location__isnull=True
                 ).exclude(
@@ -87,10 +111,26 @@ class ServiceListView(generics.ListAPIView):
                         ),
                         output_field=FloatField()
                     )
-                ).filter(distance__lte=radius).order_by('distance')
+                )
+
+                # Apply radius filter only when a meaningful distance is given.
+                # Clients that want all providers (sorted by distance) simply
+                # omit the distance param — pagination keeps the response lean.
+                if distance_param:
+                    try:
+                        radius = float(distance_param)
+                        # Treat values >= 9000 as "show all" (no radius filter)
+                        if radius < 9000:
+                            queryset = queryset.filter(distance__lte=radius)
+                    except (ValueError, TypeError):
+                        pass
+
+                # Always return nearest providers first
+                queryset = queryset.order_by('distance')
+
             except (ValueError, TypeError):
-                pass  # Invalid lat/lng values, skip location filter
-        
+                pass  # Invalid lat/lng — skip location logic
+
         return queryset
 
 
