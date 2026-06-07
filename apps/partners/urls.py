@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     PartnerStatusView,
     PartnerRegistrationView,
+    PartnerOnboardOrAddServiceView,
     PartnerProfileView,
     PartnerPublicView,
     PartnerDashboardView,
@@ -18,6 +19,7 @@ urlpatterns = [
     
     # Partner Registration & Profile Management
     path('register/', PartnerRegistrationView.as_view(), name='register'),
+    path('onboard-or-add-service/', PartnerOnboardOrAddServiceView.as_view(), name='onboard-or-add-service'),
     path('profile/', PartnerProfileView.as_view(), name='profile'),
     path('dashboard/', PartnerDashboardView.as_view(), name='dashboard'),
     

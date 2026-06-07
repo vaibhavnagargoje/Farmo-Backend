@@ -5,6 +5,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.shortcuts import get_object_or_404
+from django.contrib.auth import get_user_model
+from django.db import transaction
 
 from .models import PartnerProfile, LaborDetails, MachineryDetails, TransportDetails
 from .serializers import (
@@ -16,6 +18,8 @@ from .serializers import (
     TransportDetailsSerializer,
     LaborDetailsUpdateSerializer
 )
+
+User = get_user_model()
 
 
 class PartnerStatusView(APIView):
@@ -105,6 +109,176 @@ class PartnerRegistrationView(APIView):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+class PartnerOnboardOrAddServiceView(APIView):
+    """
+    POST: Unified endpoint for partner onboarding and service creation.
+    
+    Handles two scenarios in a single request:
+    1. User is NOT yet a partner → creates PartnerProfile + service/labor details
+    2. User IS already a partner → adds new service or updates labor details
+    
+    Request fields:
+      - partner_type: 'MACHINERY' or 'LABOR' (required)
+      
+    For MACHINERY:
+      - category: category ID (required)
+      - title: service title (required)
+      - description: service description (optional)
+      - price: numeric price (required)
+      - price_unit: HOUR/DAY/KM/ACRE/FIXED (optional, defaults to ACRE)
+      - service_radius_km: integer (optional, defaults to 10)
+      - images: image files (optional)
+      
+    For LABOR:
+      - skills: comma-separated skills string (required)
+      - daily_wage_estimate: numeric (required)
+      - is_migrant_worker: bool (optional)
+      - skill_card_photo: image file (optional)
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    @transaction.atomic
+    def post(self, request):
+        user = request.user
+        partner_type = request.data.get('partner_type', '').strip().upper()
+
+        # ── Validate partner_type ──
+        valid_types = [choice[0] for choice in PartnerProfile.PartnerType.choices]
+        if partner_type not in valid_types:
+            return Response(
+                {"error": f"Invalid partner_type. Must be one of: {', '.join(valid_types)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # ── Step 1: Ensure PartnerProfile exists ──
+        is_new_partner = False
+        try:
+            partner = user.partner_profile
+        except PartnerProfile.DoesNotExist:
+            partner = PartnerProfile.objects.create(
+                user=user,
+                partner_type=partner_type,
+            )
+            user.role = User.Role.PARTNER
+            user.save(update_fields=['role'])
+            is_new_partner = True
+
+        # ── Step 2: Handle based on partner_type ──
+        service_created = False
+
+        if partner_type == 'MACHINERY':
+            # Validate required machinery/service fields
+            category_id = request.data.get('category')
+            title = request.data.get('title', '').strip()
+            price = request.data.get('price')
+
+            if not category_id:
+                return Response({"error": "category is required for MACHINERY."}, status=status.HTTP_400_BAD_REQUEST)
+            if not title:
+                return Response({"error": "title is required for MACHINERY."}, status=status.HTTP_400_BAD_REQUEST)
+            if not price:
+                return Response({"error": "price is required for MACHINERY."}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                price_val = float(price)
+                if price_val <= 0:
+                    raise ValueError()
+            except (ValueError, TypeError):
+                return Response({"error": "price must be a positive number."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Verify category exists
+            from services.models import Category, Service, ServiceImage
+            try:
+                cat = Category.objects.get(id=category_id)
+            except Category.DoesNotExist:
+                return Response({"error": "Invalid category ID."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Create the Service
+            description = request.data.get('description', '').strip()
+            price_unit = request.data.get('price_unit', 'ACRE').strip().upper()
+            service_radius = request.data.get('service_radius_km', 10)
+            try:
+                service_radius = int(service_radius)
+            except (ValueError, TypeError):
+                service_radius = 10
+
+            service = Service.objects.create(
+                partner=partner,
+                category=cat,
+                title=title,
+                description=description,
+                price=price_val,
+                price_unit=price_unit,
+                service_radius_km=service_radius,
+                status=Service.Status.ACTIVE,
+            )
+
+            # Handle images
+            images = request.FILES.getlist('images')
+            for i, img_file in enumerate(images):
+                ServiceImage.objects.create(
+                    service=service,
+                    image=img_file,
+                    is_thumbnail=(i == 0),
+                )
+
+            service_created = True
+
+        elif partner_type == 'LABOR':
+            # Parse labor fields
+            skills = request.data.get('skills', '').strip()
+            daily_wage = request.data.get('daily_wage_estimate')
+            is_migrant = str(request.data.get('is_migrant_worker', 'false')).lower() in ('true', '1')
+            skill_card = request.FILES.get('skill_card_photo')
+
+            if not skills:
+                return Response({"error": "skills is required for LABOR."}, status=status.HTTP_400_BAD_REQUEST)
+            if not daily_wage:
+                return Response({"error": "daily_wage_estimate is required for LABOR."}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                wage_val = float(daily_wage)
+                if wage_val <= 0:
+                    raise ValueError()
+            except (ValueError, TypeError):
+                return Response({"error": "daily_wage_estimate must be a positive number."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Ensure partner_type on profile is set to LABOR
+            if partner.partner_type != PartnerProfile.PartnerType.LABOR:
+                partner.partner_type = PartnerProfile.PartnerType.LABOR
+                partner.save(update_fields=['partner_type'])
+
+            # Create or update LaborDetails
+            labor, created = LaborDetails.objects.get_or_create(
+                partner=partner,
+                defaults={
+                    'skills': skills,
+                    'daily_wage_estimate': wage_val,
+                    'is_migrant_worker': is_migrant,
+                }
+            )
+            if not created:
+                labor.skills = skills
+                labor.daily_wage_estimate = wage_val
+                labor.is_migrant_worker = is_migrant
+                labor.save()
+
+            if skill_card and hasattr(skill_card, 'read'):
+                labor.skill_card_photo = skill_card
+                labor.save(update_fields=['skill_card_photo'])
+
+        # ── Step 3: Build response ──
+        partner.refresh_from_db()
+        response_data = {
+            "message": "Partner onboarding successful." if is_new_partner else "Service added successfully.",
+            "is_new_partner": is_new_partner,
+            "service_created": service_created,
+            "partner": PartnerProfileSerializer(partner, context={'request': request}).data,
+        }
+
+        return Response(response_data, status=status.HTTP_201_CREATED if is_new_partner else status.HTTP_200_OK)
 
 class PartnerProfileView(APIView):
     """
