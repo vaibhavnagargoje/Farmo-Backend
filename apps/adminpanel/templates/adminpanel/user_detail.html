@@ -1,0 +1,755 @@
+{% extends 'adminpanel/base.html' %}
+{% block title %}{{ user.phone_number }} | Farmo Admin{% endblock %}
+{% block nav_users %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'adminpanel:users-list' %}" class="text-slate-400 hover:text-slate-600 transition-colors text-sm">Users</a>
+<svg class="w-4 h-4 text-slate-300 mx-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+<span class="font-semibold text-slate-800 text-sm">{{ user.phone_number }}</span>
+{% endblock %}
+
+{% block topbar_actions %}
+{% if partner_profile %}
+<a href="{% url 'adminpanel:service-create' user.id %}"
+   class="inline-flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shadow-sm">
+    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+    </svg>
+    Add Service
+</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="space-y-4 max-w-4xl">
+
+<!-- ══════════════════════════════════════════════════════
+     SECTION 1: User Info
+═══════════════════════════════════════════════════════ -->
+<details open class="group bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none border-b border-slate-100 hover:bg-slate-50 transition-colors">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                </svg>
+            </div>
+            <div>
+                <h2 class="font-semibold text-slate-900 text-sm">Account Info</h2>
+                <p class="text-xs text-slate-400">Role, active status, login details</p>
+            </div>
+        </div>
+        <svg class="w-5 h-5 text-slate-400 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+        </svg>
+    </summary>
+    <div class="px-5 py-5">
+        <!-- Read-only info -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-5">
+            <div>
+                <p class="text-xs text-slate-400 font-medium uppercase tracking-wide">Phone</p>
+                <p class="text-sm font-semibold text-slate-900 mt-1">{{ user.phone_number }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-400 font-medium uppercase tracking-wide">Email</p>
+                <p class="text-sm text-slate-700 mt-1">{{ user.email|default:"—" }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-400 font-medium uppercase tracking-wide">Joined</p>
+                <p class="text-sm text-slate-700 mt-1">{{ user.date_joined|date:"d M Y" }}</p>
+            </div>
+        </div>
+        <!-- Editable form -->
+        <form method="post" action="{% url 'adminpanel:update-user-info' user.id %}">
+            {% csrf_token %}
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Role</label>
+                    {{ user_info_form.role }}
+                    {% if user_info_form.role.errors %}<p class="text-xs text-rose-500 mt-1">{{ user_info_form.role.errors|join:", " }}</p>{% endif %}
+                </div>
+                <div class="flex items-end pb-1">
+                    <div class="toggle-wrap">
+                        <input type="checkbox" id="is_active_toggle" name="is_active" {% if user.is_active %}checked{% endif %}>
+                        <label for="is_active_toggle">
+                            <span class="toggle-track"></span>
+                            <span class="text-sm font-medium text-slate-700">Account Active</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button type="submit"
+                        class="bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+                    Save Account Info
+                </button>
+            </div>
+        </form>
+    </div>
+</details>
+
+<!-- ══════════════════════════════════════════════════════
+     SECTION 2: Customer Profile
+═══════════════════════════════════════════════════════ -->
+<details open class="group bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none border-b border-slate-100 hover:bg-slate-50 transition-colors">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <div>
+                <h2 class="font-semibold text-slate-900 text-sm">Customer Profile</h2>
+                <p class="text-xs text-slate-400">
+                    {% if customer_profile %}{{ customer_profile.full_name|default:"No name" }}{% else %}<span class="text-amber-500">Not created yet</span>{% endif %}
+                </p>
+            </div>
+        </div>
+        <svg class="w-5 h-5 text-slate-400 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+        </svg>
+    </summary>
+    <div class="px-5 py-5">
+        <form method="post" action="{% url 'adminpanel:update-customer-profile' user.id %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Full Name</label>
+                    {{ customer_profile_form.full_name }}
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Profile Photo</label>
+                    {% if customer_profile.profile_picture %}
+                    <div class="mb-2">
+                        <img src="{{ customer_profile.profile_picture.url }}" class="w-16 h-16 rounded-xl object-cover border border-slate-200" alt="Profile">
+                    </div>
+                    {% endif %}
+                    {{ customer_profile_form.profile_picture }}
+                </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button type="submit"
+                        class="bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+                    Save Customer Profile
+                </button>
+            </div>
+        </form>
+    </div>
+</details>
+
+<!-- ══════════════════════════════════════════════════════
+     SECTION 3: Location
+═══════════════════════════════════════════════════════ -->
+<details class="group bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden" id="location-section">
+    <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none border-b border-slate-100 hover:bg-slate-50 transition-colors">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+            </div>
+            <div>
+                <h2 class="font-semibold text-slate-900 text-sm">Location / Address</h2>
+                <p class="text-xs text-slate-400">
+                    {% if location %}{{ location.address|default:"No address"|truncatechars:50 }}{% else %}<span class="text-amber-500">Not set</span>{% endif %}
+                </p>
+            </div>
+        </div>
+        <svg class="w-5 h-5 text-slate-400 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+        </svg>
+    </summary>
+    <div class="px-5 py-5">
+        <!-- Leaflet CSS -->
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+
+        <form method="post" action="{% url 'adminpanel:update-user-location' user.id %}" id="location-form">
+            {% csrf_token %}
+            <div class="space-y-4">
+
+                <!-- Address search -->
+                <div class="relative">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Search Address</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="address-search"
+                               placeholder="Type village, taluka, district, or full address…"
+                               class="form-input flex-1 text-sm" autocomplete="off"
+                               onkeydown="if(event.key==='Enter'){event.preventDefault();searchAddress();}">
+                        <button type="button" onclick="searchAddress()"
+                                class="bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors flex-shrink-0">
+                            Search
+                        </button>
+                    </div>
+                    <div id="search-results"
+                         class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden max-h-52 overflow-y-auto"
+                         style="z-index:9999;"></div>
+                </div>
+
+                <!-- Map -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+                        Pin Location
+                        <span class="font-normal text-slate-400 ml-1">— drag the marker or click anywhere on the map</span>
+                    </label>
+                    <div id="location-map" class="rounded-xl border border-slate-200" style="height:320px; position:relative; z-index:0;"></div>
+                </div>
+
+                <!-- Coordinate + address fields -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1.5">Latitude</label>
+                        <input type="text" name="latitude" id="lat-input"
+                               value="{{ location.latitude|default:'' }}"
+                               class="form-input text-sm font-mono" placeholder="18.520430"
+                               oninput="updateMapFromInputs()">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1.5">Longitude</label>
+                        <input type="text" name="longitude" id="lng-input"
+                               value="{{ location.longitude|default:'' }}"
+                               class="form-input text-sm font-mono" placeholder="73.856744"
+                               oninput="updateMapFromInputs()">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1.5">Address <span class="text-slate-400 font-normal">(saved to DB)</span></label>
+                        <textarea name="address" id="address-input" rows="2"
+                                  class="form-input text-sm" style="resize:vertical;"
+                                  placeholder="Auto-filled when you pick a location">{{ location.address|default:'' }}</textarea>
+                    </div>
+                </div>
+
+            </div>
+            <div class="mt-4 flex items-center justify-between">
+                <p class="text-xs text-slate-400">Tip: Search → pick result → confirm pin → Save</p>
+                <button type="submit"
+                        class="bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-colors">
+                    Save Location
+                </button>
+            </div>
+        </form>
+    </div>
+</details>
+
+<!-- ── Leaflet JS + Location Map Logic ────────────────────────── -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV/XN/WLcE=" crossorigin=""></script>
+<script>
+(function () {
+    var initLat = parseFloat("{{ location.latitude|default:'20.5937' }}") || 20.5937;
+    var initLng = parseFloat("{{ location.longitude|default:'78.9629' }}") || 78.9629;
+    var hasLocation = {{ location.latitude|yesno:"true,false" }};
+
+    var map = L.map('location-map', { zoomControl: true }).setView([initLat, initLng], hasLocation ? 14 : 5);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19
+    }).addTo(map);
+
+    var marker = L.marker([initLat, initLng], { draggable: true }).addTo(map);
+
+    function setCoords(lat, lng) {
+        document.getElementById('lat-input').value = lat.toFixed(6);
+        document.getElementById('lng-input').value = lng.toFixed(6);
+    }
+
+    marker.on('dragend', function (e) {
+        var pos = e.target.getLatLng();
+        setCoords(pos.lat, pos.lng);
+        reverseGeocode(pos.lat, pos.lng);
+    });
+
+    map.on('click', function (e) {
+        marker.setLatLng(e.latlng);
+        setCoords(e.latlng.lat, e.latlng.lng);
+        reverseGeocode(e.latlng.lat, e.latlng.lng);
+    });
+
+    window.updateMapFromInputs = function () {
+        var lat = parseFloat(document.getElementById('lat-input').value);
+        var lng = parseFloat(document.getElementById('lng-input').value);
+        if (!isNaN(lat) && !isNaN(lng)) {
+            marker.setLatLng([lat, lng]);
+            map.setView([lat, lng], 14);
+        }
+    };
+
+    function reverseGeocode(lat, lng) {
+        fetch('https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lng + '&format=json', {
+            headers: { 'Accept-Language': 'en', 'User-Agent': 'FarmoAdmin/1.0' }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data && data.display_name) {
+                document.getElementById('address-input').value = data.display_name;
+            }
+        })
+        .catch(function() {});
+    }
+
+    window.searchAddress = function () {
+        var query = document.getElementById('address-search').value.trim();
+        if (!query) return;
+
+        fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(query) + '&format=json&limit=6', {
+            headers: { 'Accept-Language': 'en', 'User-Agent': 'FarmoAdmin/1.0' }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(results) {
+            var box = document.getElementById('search-results');
+            box.innerHTML = '';
+            if (!results.length) {
+                box.innerHTML = '<p class="px-4 py-3 text-sm text-slate-400">No results found. Try a different search.</p>';
+                box.classList.remove('hidden');
+                return;
+            }
+            results.forEach(function(r) {
+                var div = document.createElement('div');
+                div.className = 'px-4 py-2.5 text-sm text-slate-700 hover:bg-amber-50 cursor-pointer border-b border-slate-100 last:border-0';
+                div.textContent = r.display_name;
+                div.onclick = function () {
+                    var lat = parseFloat(r.lat);
+                    var lng = parseFloat(r.lon);
+                    marker.setLatLng([lat, lng]);
+                    map.setView([lat, lng], 15);
+                    setCoords(lat, lng);
+                    document.getElementById('address-input').value = r.display_name;
+                    document.getElementById('address-search').value = '';
+                    box.classList.add('hidden');
+                };
+                box.appendChild(div);
+            });
+            box.classList.remove('hidden');
+        })
+        .catch(function() {});
+    };
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function (e) {
+        var box = document.getElementById('search-results');
+        var search = document.getElementById('address-search');
+        if (box && !box.contains(e.target) && e.target !== search) {
+            box.classList.add('hidden');
+        }
+    });
+
+    // Leaflet needs invalidateSize when <details> expands
+    var section = document.getElementById('location-section');
+    if (section) {
+        section.addEventListener('toggle', function (e) {
+            if (e.target.open) {
+                setTimeout(function() { map.invalidateSize(); }, 150);
+            }
+        });
+    }
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════
+     SECTION 4: Partner Profile
+═══════════════════════════════════════════════════════ -->
+<details class="group bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none border-b border-slate-100 hover:bg-slate-50 transition-colors">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                </svg>
+            </div>
+            <div>
+                <h2 class="font-semibold text-slate-900 text-sm">Partner Profile</h2>
+                <p class="text-xs text-slate-400">
+                    {% if partner_profile %}
+                        {{ partner_profile.get_partner_type_display }} —
+                        {% if partner_profile.is_verified %}<span class="text-green-600">Verified</span>
+                        {% elif partner_profile.is_kyc_submitted %}<span class="text-amber-600">KYC Submitted</span>
+                        {% else %}<span class="text-slate-400">Not verified</span>{% endif %}
+                    {% else %}<span class="text-amber-500">No partner profile</span>{% endif %}
+                </p>
+            </div>
+        </div>
+        <svg class="w-5 h-5 text-slate-400 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+        </svg>
+    </summary>
+    <div class="px-5 py-5">
+        <form method="post" action="{% url 'adminpanel:update-partner-profile' user.id %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Partner Type</label>
+                    {{ partner_profile_form.partner_type }}
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Business Name</label>
+                    {{ partner_profile_form.business_name }}
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">About / Bio</label>
+                    {{ partner_profile_form.about }}
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Rejection Reason <span class="text-slate-400 font-normal">(if applicable)</span></label>
+                    {{ partner_profile_form.rejected_reason }}
+                </div>
+            </div>
+
+            <!-- Toggles row -->
+            <div class="mt-4 flex flex-wrap gap-6">
+                <div class="toggle-wrap">
+                    <input type="checkbox" id="is_verified_chk" name="is_verified" {% if partner_profile.is_verified %}checked{% endif %}>
+                    <label for="is_verified_chk">
+                        <span class="toggle-track"></span>
+                        <span class="text-sm font-medium text-slate-700">Verified</span>
+                    </label>
+                </div>
+                <div class="toggle-wrap">
+                    <input type="checkbox" id="is_kyc_chk" name="is_kyc_submitted" {% if partner_profile.is_kyc_submitted %}checked{% endif %}>
+                    <label for="is_kyc_chk">
+                        <span class="toggle-track"></span>
+                        <span class="text-sm font-medium text-slate-700">KYC Submitted</span>
+                    </label>
+                </div>
+                <div class="toggle-wrap">
+                    <input type="checkbox" id="is_avail_chk" name="is_available" {% if partner_profile.is_available %}checked{% endif %}>
+                    <label for="is_avail_chk">
+                        <span class="toggle-track"></span>
+                        <span class="text-sm font-medium text-slate-700">Available</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- KYC Documents -->
+            <div class="mt-5 pt-4 border-t border-slate-100">
+                <p class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">KYC Documents</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {% for field_name, label in partner_doc_fields %}{% endfor %}
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1.5">Aadhaar Front</label>
+                        {% if partner_profile.aadhar_card_front %}
+                        <a href="{{ partner_profile.aadhar_card_front.url }}" target="_blank" class="block mb-2">
+                            <img src="{{ partner_profile.aadhar_card_front.url }}" class="w-full h-24 object-cover rounded-lg border border-slate-200" alt="Aadhaar Front">
+                        </a>
+                        {% endif %}
+                        {{ partner_profile_form.aadhar_card_front }}
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1.5">Aadhaar Back</label>
+                        {% if partner_profile.aadhar_card_back %}
+                        <a href="{{ partner_profile.aadhar_card_back.url }}" target="_blank" class="block mb-2">
+                            <img src="{{ partner_profile.aadhar_card_back.url }}" class="w-full h-24 object-cover rounded-lg border border-slate-200" alt="Aadhaar Back">
+                        </a>
+                        {% endif %}
+                        {{ partner_profile_form.aadhar_card_back }}
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1.5">PAN Card</label>
+                        {% if partner_profile.pan_card %}
+                        <a href="{{ partner_profile.pan_card.url }}" target="_blank" class="block mb-2">
+                            <img src="{{ partner_profile.pan_card.url }}" class="w-full h-24 object-cover rounded-lg border border-slate-200" alt="PAN">
+                        </a>
+                        {% endif %}
+                        {{ partner_profile_form.pan_card }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4 flex justify-end">
+                <button type="submit"
+                        class="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+                    Save Partner Profile
+                </button>
+            </div>
+        </form>
+    </div>
+</details>
+
+<!-- ══════════════════════════════════════════════════════
+     SECTION 5a: Labor Details (shown if LABOR)
+═══════════════════════════════════════════════════════ -->
+{% if not partner_profile or partner_profile.partner_type == 'LABOR' %}
+<details class="group bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none border-b border-slate-100 hover:bg-slate-50 transition-colors">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                </svg>
+            </div>
+            <div>
+                <h2 class="font-semibold text-slate-900 text-sm">Labor Details</h2>
+                <p class="text-xs text-slate-400">
+                    {% if labor_details %}Daily ₹{{ labor_details.daily_wage_estimate|default:"—" }} — {{ labor_details.skills|default:"No skills" }}
+                    {% else %}<span class="text-amber-500">Not filled</span>{% endif %}
+                </p>
+            </div>
+        </div>
+        <svg class="w-5 h-5 text-slate-400 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+        </svg>
+    </summary>
+    <div class="px-5 py-5">
+        <form method="post" action="{% url 'adminpanel:update-labor-details' user.id %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Daily Wage (₹)</label>
+                    {{ labor_form.daily_wage_estimate }}
+                </div>
+                <div class="flex items-end pb-1">
+                    <div class="toggle-wrap">
+                        <input type="checkbox" id="migrant_chk" name="is_migrant_worker" {% if labor_details.is_migrant_worker %}checked{% endif %}>
+                        <label for="migrant_chk">
+                            <span class="toggle-track"></span>
+                            <span class="text-sm font-medium text-slate-700">Migrant Worker</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block text-xs font-semibold text-slate-600 mb-2">Skills</label>
+                    <div class="flex flex-wrap gap-2">
+                        {% for choice_val, choice_label in labor_form.fields.skills.choices %}
+                        <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" name="skills" value="{{ choice_val }}"
+                                   {% if choice_val in labor_form.initial.skills %}checked{% endif %}
+                                   class="rounded border-slate-300 text-green-500 focus:ring-green-400">
+                            <span class="text-sm text-slate-700">{{ choice_label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Skill Card Photo</label>
+                    {% if labor_details.skill_card_photo %}
+                    <a href="{{ labor_details.skill_card_photo.url }}" target="_blank" class="block mb-2">
+                        <img src="{{ labor_details.skill_card_photo.url }}" class="h-24 rounded-lg border border-slate-200 object-cover" alt="Skill Card">
+                    </a>
+                    {% endif %}
+                    {{ labor_form.skill_card_photo }}
+                </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button type="submit"
+                        class="bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+                    Save Labor Details
+                </button>
+            </div>
+        </form>
+    </div>
+</details>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════
+     SECTION 5b: Machinery Details
+═══════════════════════════════════════════════════════ -->
+{% if partner_profile.partner_type == 'MACHINERY' %}
+<details class="group bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none border-b border-slate-100 hover:bg-slate-50 transition-colors">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-sky-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+            </div>
+            <div>
+                <h2 class="font-semibold text-slate-900 text-sm">Machinery Details</h2>
+                <p class="text-xs text-slate-400">
+                    {% if machinery_details %}Fleet size: {{ machinery_details.fleet_size }}
+                    {% else %}<span class="text-amber-500">Not filled</span>{% endif %}
+                </p>
+            </div>
+        </div>
+        <svg class="w-5 h-5 text-slate-400 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+        </svg>
+    </summary>
+    <div class="px-5 py-5">
+        <form method="post" action="{% url 'adminpanel:update-machinery-details' user.id %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Fleet Size</label>
+                    {{ machinery_form.fleet_size }}
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">DL Number</label>
+                    {{ machinery_form.owner_dl_number }}
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">DL Photo</label>
+                    {% if machinery_details.owner_dl_photo %}
+                    <a href="{{ machinery_details.owner_dl_photo.url }}" target="_blank" class="block mb-2">
+                        <img src="{{ machinery_details.owner_dl_photo.url }}" class="h-24 rounded-lg border border-slate-200 object-cover" alt="DL">
+                    </a>
+                    {% endif %}
+                    {{ machinery_form.owner_dl_photo }}
+                </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button type="submit" class="bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+                    Save Machinery Details
+                </button>
+            </div>
+        </form>
+    </div>
+</details>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════
+     SECTION 5c: Transport Details
+═══════════════════════════════════════════════════════ -->
+{% if partner_profile.partner_type == 'TRANSPORT' %}
+<details class="group bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none border-b border-slate-100 hover:bg-slate-50 transition-colors">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-teal-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"/>
+                </svg>
+            </div>
+            <div>
+                <h2 class="font-semibold text-slate-900 text-sm">Transport Details</h2>
+                <p class="text-xs text-slate-400">{% if transport_details %}DL: {{ transport_details.driving_license_number|default:"—" }}{% else %}<span class="text-amber-500">Not filled</span>{% endif %}</p>
+            </div>
+        </div>
+        <svg class="w-5 h-5 text-slate-400 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+        </svg>
+    </summary>
+    <div class="px-5 py-5">
+        <form method="post" action="{% url 'adminpanel:update-transport-details' user.id %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Driving License No.</label>
+                    {{ transport_form.driving_license_number }}
+                </div>
+                <div class="flex items-end pb-1">
+                    <div class="toggle-wrap">
+                        <input type="checkbox" id="intercity_chk" name="is_intercity_available" {% if transport_details.is_intercity_available %}checked{% endif %}>
+                        <label for="intercity_chk">
+                            <span class="toggle-track"></span>
+                            <span class="text-sm font-medium text-slate-700">Intercity Available</span>
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">DL Photo</label>
+                    {% if transport_details.driving_license_photo %}
+                    <a href="{{ transport_details.driving_license_photo.url }}" target="_blank">
+                        <img src="{{ transport_details.driving_license_photo.url }}" class="h-20 rounded-lg border border-slate-200 mb-2 object-cover" alt="DL">
+                    </a>
+                    {% endif %}
+                    {{ transport_form.driving_license_photo }}
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Vehicle Insurance Photo</label>
+                    {% if transport_details.vehicle_insurance_photo %}
+                    <a href="{{ transport_details.vehicle_insurance_photo.url }}" target="_blank">
+                        <img src="{{ transport_details.vehicle_insurance_photo.url }}" class="h-20 rounded-lg border border-slate-200 mb-2 object-cover" alt="Insurance">
+                    </a>
+                    {% endif %}
+                    {{ transport_form.vehicle_insurance_photo }}
+                </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button type="submit" class="bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+                    Save Transport Details
+                </button>
+            </div>
+        </form>
+    </div>
+</details>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════
+     SECTION 6: Services
+═══════════════════════════════════════════════════════ -->
+<div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                </svg>
+            </div>
+            <div>
+                <h2 class="font-semibold text-slate-900 text-sm">Services</h2>
+                <p class="text-xs text-slate-400">{{ services|length }} service{{ services|length|pluralize }} listed</p>
+            </div>
+        </div>
+        {% if partner_profile %}
+        <a href="{% url 'adminpanel:service-create' user.id %}"
+           class="inline-flex items-center gap-1 text-xs font-semibold text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+            </svg>
+            Add Service
+        </a>
+        {% endif %}
+    </div>
+
+    {% if services %}
+    <div class="divide-y divide-slate-100">
+        {% for service in services %}
+        <div class="flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors">
+            <div class="flex items-center gap-4 min-w-0">
+                <!-- Thumbnail -->
+                <div class="w-12 h-12 rounded-xl bg-slate-100 flex-shrink-0 overflow-hidden">
+                    {% with thumb=service.images.all|first %}
+                    {% if thumb %}
+                    <img src="{{ thumb.image.url }}" class="w-12 h-12 object-cover" alt="">
+                    {% else %}
+                    <div class="w-12 h-12 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+                <div class="min-w-0">
+                    <p class="font-semibold text-slate-900 text-sm truncate">{{ service.title }}</p>
+                    <p class="text-xs text-slate-400">{{ service.category.name }} · ₹{{ service.price }}/{{ service.price_unit }}</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 flex-shrink-0">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
+                    {% if service.status == 'ACTIVE' %}badge-active
+                    {% elif service.status == 'PENDING' %}badge-pending
+                    {% elif service.status == 'REJECTED' %}badge-rejected
+                    {% elif service.status == 'HIDDEN' %}badge-hidden
+                    {% else %}badge-draft{% endif %}">
+                    {{ service.get_status_display }}
+                </span>
+                <a href="{% url 'adminpanel:service-edit' user.id service.id %}"
+                   class="text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors">
+                    Edit
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% elif partner_profile %}
+    <div class="px-5 py-10 text-center">
+        <div class="text-slate-200 mb-2">
+            <svg class="w-8 h-8 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        </div>
+        <p class="text-slate-400 text-sm">No services yet</p>
+        <a href="{% url 'adminpanel:service-create' user.id %}"
+           class="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-green-600 hover:underline">
+            + Add first service
+        </a>
+    </div>
+    {% else %}
+    <div class="px-5 py-8 text-center">
+        <p class="text-slate-400 text-sm">Create a partner profile first to add services.</p>
+    </div>
+    {% endif %}
+</div>
+
+</div><!-- end max-w-4xl -->
+{% endblock %}
