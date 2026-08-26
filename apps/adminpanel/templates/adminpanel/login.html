@@ -1,0 +1,386 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In — Farmo Admin Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body { height: 100%; }
+
+    body {
+      min-height: 100vh;
+      background: #f0f4f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    /* ── Outer wrapper ─────────────────────────────────────── */
+    .login-wrapper {
+      width: 100%;
+      max-width: 960px;
+      min-height: 580px;
+      display: flex;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,.15), 0 4px 16px rgba(0,0,0,.08);
+    }
+
+    /* ── Left panel ────────────────────────────────────────── */
+    .left-panel {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 40px 36px;
+    }
+    .left-panel-bg {
+      position: absolute; inset: 0;
+      background-image: url("{% static 'adminpanel/images/login-bg.jpg' %}");
+      background-size: cover;
+      background-position: center;
+    }
+    /* Dark overlay for text legibility */
+    .left-panel-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(
+        160deg,
+        rgba(15, 60, 25, 0.72) 0%,
+        rgba(15, 60, 25, 0.45) 60%,
+        rgba(15, 60, 25, 0.75) 100%
+      );
+    }
+    .left-content { position: relative; z-index: 2; }
+
+    /* ── Right panel ───────────────────────────────────────── */
+    .right-panel {
+      width: 420px;
+      flex-shrink: 0;
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 48px 44px;
+    }
+
+    /* ── Inputs ────────────────────────────────────────────── */
+    .field-wrap { position: relative; }
+    .field-icon {
+      position: absolute; left: 13px; top: 50%;
+      transform: translateY(-50%);
+      color: #9ca3af; pointer-events: none;
+      transition: color .2s;
+    }
+    .field-input {
+      display: block; width: 100%;
+      border: 1.5px solid #d1d5db;
+      border-radius: 8px;
+      padding: 11px 14px 11px 40px;
+      font-size: 14px; color: #111827;
+      outline: none; background: #fff;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .field-input::placeholder { color: #9ca3af; font-size: 13px; }
+    .field-input:focus {
+      border-color: #1a7a35;
+      box-shadow: 0 0 0 3px rgba(26, 122, 53, 0.12);
+    }
+    .field-input:focus + .field-icon { color: #1a7a35; }
+
+    /* fix: icon is before input in DOM, so focus effect needs adjacent-sibling */
+    .field-wrap:focus-within .field-icon { color: #1a7a35; }
+
+    .pw-toggle {
+      position: absolute; right: 12px; top: 50%;
+      transform: translateY(-50%);
+      color: #9ca3af; cursor: pointer;
+      background: none; border: none; padding: 4px;
+      transition: color .15s; line-height: 0;
+    }
+    .pw-toggle:hover { color: #4b5563; }
+
+    /* ── Submit button ─────────────────────────────────────── */
+    .btn-submit {
+      display: block; width: 100%;
+      background: linear-gradient(135deg, #1a5c2a, #22a048);
+      color: #fff; font-weight: 700; font-size: 15px; letter-spacing: .3px;
+      border: none; border-radius: 8px;
+      padding: 13px;
+      cursor: pointer;
+      transition: opacity .2s, transform .1s, box-shadow .2s;
+      box-shadow: 0 4px 14px rgba(26,122,53,.35);
+    }
+    .btn-submit:hover { opacity: .92; box-shadow: 0 6px 20px rgba(26,122,53,.45); }
+    .btn-submit:active { transform: scale(.98); }
+    .btn-submit:disabled { opacity: .65; cursor: not-allowed; transform: none; }
+
+    /* ── Error box ─────────────────────────────────────────── */
+    .error-box {
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      border-radius: 8px;
+      padding: 11px 14px;
+      font-size: 13px; color: #dc2626;
+      display: flex; align-items: flex-start; gap: 9px;
+    }
+
+    /* ── Role badge chips ──────────────────────────────────── */
+    .role-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 100px;
+      font-size: 11px; font-weight: 600; border: 1px solid;
+    }
+
+    /* ── Scrollbar ─────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+
+    /* ── Responsive: hide left panel on small screens ─────── */
+    @media (max-width: 700px) {
+      .left-panel { display: none; }
+      .right-panel { width: 100%; border-radius: 16px; padding: 36px 28px; }
+      .login-wrapper { box-shadow: 0 8px 32px rgba(0,0,0,.12); }
+    }
+
+    /* Spin animation */
+    @keyframes spin { from { transform:rotate(0) } to { transform:rotate(360deg) } }
+    .spin { animation: spin .8s linear infinite; }
+  </style>
+</head>
+<body>
+
+<div class="login-wrapper">
+
+  <!-- ─────────────── LEFT PANEL ─────────────────────────── -->
+  <div class="left-panel">
+    <div class="left-panel-bg"></div>
+    <div class="left-panel-overlay"></div>
+
+    <!-- Top: logo -->
+    <div class="left-content">
+      <div class="bg-white/15 backdrop-blur-sm inline-flex items-center gap-3 px-4 py-3 rounded-xl border border-white/20">
+        <img src="{% static 'adminpanel/images/farmo-logo.png' %}" alt="Farmo" style="height:32px; width:auto; filter: brightness(0) invert(1);">
+      </div>
+    </div>
+
+    <!-- Middle: headline -->
+    <div class="left-content text-center">
+      <div class="w-16 h-16 rounded-2xl bg-white/15 border border-white/25 flex items-center justify-center mx-auto mb-5 backdrop-blur-sm">
+        <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806
+               3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806
+               3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946
+               3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946
+               3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806
+               3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806
+               3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946
+               3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946
+               3.42 3.42 0 013.138-3.138z"/>
+        </svg>
+      </div>
+      <h2 class="text-white text-2xl font-bold leading-tight mb-2">Farmo Admin Portal</h2>
+      <p class="text-white/70 text-sm leading-relaxed max-w-xs mx-auto">
+        Secure access for authorized staff to manage farmers, partners, and platform operations.
+      </p>
+    </div>
+
+    <!-- Bottom: access level badges -->
+    <div class="left-content">
+      <p class="text-white/50 text-xs font-semibold uppercase tracking-widest mb-3">Authorized Access</p>
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center gap-2.5 bg-white/10 border border-white/15 rounded-lg px-3 py-2.5">
+          <div class="w-7 h-7 rounded-lg bg-purple-400/30 flex items-center justify-center flex-shrink-0">
+            <svg class="w-3.5 h-3.5 text-purple-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-white text-xs font-semibold">Super Admin</p>
+            <p class="text-white/50 text-xs">Full platform control</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2.5 bg-white/10 border border-white/15 rounded-lg px-3 py-2.5">
+          <div class="w-7 h-7 rounded-lg bg-blue-400/30 flex items-center justify-center flex-shrink-0">
+            <svg class="w-3.5 h-3.5 text-blue-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-white text-xs font-semibold">Admin</p>
+            <p class="text-white/50 text-xs">User & partner management</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2.5 bg-white/10 border border-white/15 rounded-lg px-3 py-2.5">
+          <div class="w-7 h-7 rounded-lg bg-sky-400/30 flex items-center justify-center flex-shrink-0">
+            <svg class="w-3.5 h-3.5 text-sky-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-white text-xs font-semibold">Verification Manager</p>
+            <p class="text-white/50 text-xs">KYC & partner verification</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────── RIGHT PANEL ────────────────────────── -->
+  <div class="right-panel">
+
+    <!-- Logo (visible on mobile when left panel hidden) -->
+    <div class="mb-1 lg:hidden flex justify-center">
+      <img src="{% static 'adminpanel/images/farmo-logo.png' %}" alt="Farmo" style="height:36px; width:auto;">
+    </div>
+
+    <!-- Heading -->
+    <div class="mb-8">
+      <div class="hidden lg:block mb-6">
+        <img src="{% static 'adminpanel/images/farmo-logo.png' %}" alt="Farmo" style="height:38px; width:auto;">
+      </div>
+      <h1 class="text-2xl font-bold text-gray-900 leading-tight">Welcome back</h1>
+      <p class="text-sm text-gray-500 mt-1.5">Sign in to your admin account to continue</p>
+    </div>
+
+    <!-- Error -->
+    {% if error %}
+    <div class="error-box mb-5">
+      <svg class="w-4 h-4 flex-shrink-0 mt-0.5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      <span>{{ error }}</span>
+    </div>
+    {% endif %}
+
+    <!-- Form -->
+    <form method="post" id="login-form" novalidate autocomplete="off">
+      {% csrf_token %}
+      {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+
+      <div class="space-y-5">
+
+        <!-- Phone -->
+        <div>
+          <label for="id_phone_number" class="block text-sm font-semibold text-gray-700 mb-2">
+            Phone Number
+          </label>
+          <div class="field-wrap">
+            <svg class="field-icon w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+            </svg>
+            <input
+              type="tel"
+              name="phone_number"
+              id="id_phone_number"
+              class="field-input"
+              placeholder="+91 98765 43210"
+              autocomplete="username"
+              autofocus
+              required
+            >
+          </div>
+        </div>
+
+        <!-- Password -->
+        <div>
+          <label for="id_password" class="block text-sm font-semibold text-gray-700 mb-2">
+            Password
+          </label>
+          <div class="field-wrap">
+            <svg class="field-icon w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+            <input
+              type="password"
+              name="password"
+              id="id_password"
+              class="field-input"
+              placeholder="Enter your password"
+              autocomplete="current-password"
+              required
+              style="padding-right: 42px;"
+            >
+            <button type="button" class="pw-toggle" id="pw-toggle" aria-label="Show/hide password">
+              <svg id="eye-show" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+              </svg>
+              <svg id="eye-hide" class="w-4 h-4 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Forgot password row -->
+        <div class="flex justify-end -mt-1">
+          <a href="#" class="text-sm font-medium text-green-700 hover:text-green-900 hover:underline transition-colors">
+            Forgot password?
+          </a>
+        </div>
+
+        <!-- Submit -->
+        <button type="submit" class="btn-submit" id="btn-submit">
+          <span id="btn-label" class="flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
+            </svg>
+            Sign In to Admin Panel
+          </span>
+        </button>
+
+      </div>
+    </form>
+
+    <!-- Footer note -->
+    <div class="mt-8 pt-6 border-t border-gray-100">
+      <p class="text-xs text-gray-400 text-center leading-relaxed">
+        This portal is restricted to authorized Farmo staff only.<br>
+        Unauthorized access attempts are logged and monitored.
+      </p>
+    </div>
+
+  </div><!-- /right-panel -->
+
+</div><!-- /login-wrapper -->
+
+<script>
+  // Password toggle
+  const pwInput  = document.getElementById('id_password');
+  const eyeShow  = document.getElementById('eye-show');
+  const eyeHide  = document.getElementById('eye-hide');
+  document.getElementById('pw-toggle').addEventListener('click', function () {
+    const isPassword = pwInput.type === 'password';
+    pwInput.type = isPassword ? 'text' : 'password';
+    eyeShow.classList.toggle('hidden', isPassword);
+    eyeHide.classList.toggle('hidden', !isPassword);
+  });
+
+  // Loading state on submit
+  document.getElementById('login-form').addEventListener('submit', function () {
+    const btn   = document.getElementById('btn-submit');
+    const label = document.getElementById('btn-label');
+    btn.disabled = true;
+    label.innerHTML = `
+      <svg class="w-4 h-4 spin" fill="none" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" style="opacity:.25"/>
+        <path fill="currentColor" style="opacity:.75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+      </svg>
+      Signing in…`;
+  });
+</script>
+</body>
+</html>

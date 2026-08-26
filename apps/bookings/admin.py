@@ -56,7 +56,8 @@ class BookingAdmin(admin.ModelAdmin):
         'end_job_otp', 
         'expires_at',
         'created_at', 
-        'updated_at'
+        'updated_at',
+        'accepted_by_agent'
     )
 
     inlines = [InstantBookingRequestInline]
@@ -66,7 +67,7 @@ class BookingAdmin(admin.ModelAdmin):
             'fields': ('booking_id', 'booking_type', 'status', 'payment_status')
         }),
         ('Parties Involved', {
-            'fields': ('customer', 'provider', 'service', 'category')
+            'fields': ('customer', 'provider', 'accepted_by_agent', 'service', 'category')
         }),
         ('Schedule & Location', {
             'fields': ('scheduled_date', 'scheduled_time', 'expires_at', 'address', 'lat', 'lng')

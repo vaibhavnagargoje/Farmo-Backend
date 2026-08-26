@@ -49,24 +49,6 @@ class PartnerProfile(models.Model):
 
 # --- Specific Details based on Type ---
 
-class LaborDetails(models.Model):
-    """
-    Extra details if partner_type == LABOR
-    """
-    partner = models.OneToOneField(PartnerProfile, on_delete=models.CASCADE, related_name='labor_details')
-    
-    # Specifics
-    skill_card_photo = models.ImageField(upload_to='partners/skills/', blank=True, null=True)
-    daily_wage_estimate = models.DecimalField(max_digits=8, decimal_places=2, null=True)
-    is_migrant_worker = models.BooleanField(default=False)
-    
-    # Skills (List of strings or ManyToMany in a real scenario)
-    skills = models.TextField(help_text="Comma separated: Mason, Helper, Harvester") 
-
-    def __str__(self):
-        return f"Labor Details: {self.partner.user.phone_number}"
-
-
 class MachineryDetails(models.Model):
     """
     Extra details if partner_type == MACHINERY

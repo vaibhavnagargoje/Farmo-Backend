@@ -80,11 +80,22 @@ class CustomerProfile(models.Model):
     Specific details for the 'Seeker' (User who needs labor/machines).
     Location data is now stored in locations.UserLocation (shared by all roles).
     """
+
+    class Gender(models.TextChoices):
+        MALE = 'M', 'Male'
+        FEMALE = 'F', 'Female'
+        OTHER = 'O', 'Other'
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='customer_profile')
     
     # Basic Profile
     full_name = models.CharField(max_length=255, blank=True, default="") 
     profile_picture = models.ImageField(upload_to='customers/avatars/', blank=True, null=True)
+    gender = models.CharField(
+        max_length=1, choices=Gender.choices,
+        null=True, blank=True,
+        help_text="Gender of the user"
+    )
 
     def __str__(self):
         return f"Customer: {self.full_name}"

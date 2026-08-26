@@ -1,15 +1,26 @@
 # apps/partners/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import PartnerProfile, LaborDetails, MachineryDetails, TransportDetails
+from .models import PartnerProfile, MachineryDetails, TransportDetails
+from labor_services.models import LaborDetails
 
 User = get_user_model()
 
+
 # --- Nested Detail Serializers ---
 class LaborDetailsSerializer(serializers.ModelSerializer):
+    # We import inline to avoid circular import issues if labor_services isn't loaded
+    from labor_services.serializers import LaborServiceTypeSerializer
+    from labor_services.models import LaborServiceType
+
+    skills = LaborServiceTypeSerializer(source='service_types', many=True, read_only=True)
+    skill_ids = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=LaborServiceType.objects.filter(is_active=True), source='service_types', write_only=True, required=False
+    )
+
     class Meta:
         model = LaborDetails
-        fields = ['skill_card_photo', 'daily_wage_estimate', 'is_migrant_worker', 'skills']
+        fields = ['skill_card_photo', 'daily_wage_estimate', 'is_migrant_worker', 'skills', 'skill_ids']
 
 class MachineryDetailsSerializer(serializers.ModelSerializer):
     class Meta:
@@ -127,9 +138,9 @@ class LaborDetailsUpdateSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = LaborDetails
-        fields = ['skills', 'daily_wage_estimate', 'is_migrant_worker', 'skill_card_photo']
+        fields = ['service_types', 'daily_wage_estimate', 'is_migrant_worker', 'skill_card_photo']
         extra_kwargs = {
-            'skills': {'required': False},
+            'service_types': {'required': False},
             'daily_wage_estimate': {'required': False},
             'is_migrant_worker': {'required': False},
             'skill_card_photo': {'required': False},

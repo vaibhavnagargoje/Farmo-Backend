@@ -46,6 +46,12 @@ class Booking(models.Model):
         null=True, blank=True
     )
     
+    # 5. Agent who accepted on behalf of the provider (for tracking)
+    accepted_by_agent = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, related_name='agent_accepted_bookings',
+        null=True, blank=True, help_text="The admin/agent who accepted this on behalf of the provider"
+    )
+    
     # --- JOB DETAILS ---
     booking_id = models.CharField(max_length=20, unique=True, editable=False) 
     order_number = models.CharField(
@@ -193,15 +199,34 @@ class Booking(models.Model):
             self.total_amount = self.unit_price * self.quantity
             
         super().save(*args, **kwargs)
-        
-        # Cascade: when booking is cancelled or expired, expire all pending instant requests
-        if self.status in (self.Status.CANCELLED, self.Status.EXPIRED):
+
+        # ── Calendar Availability: auto-mark busy on CONFIRMED ──
+        if self.status == self.Status.CONFIRMED and self.provider and self.scheduled_date:
+            from availability.models import BusyDay
+            BusyDay.objects.get_or_create(
+                partner=self.provider,
+                service=None,  # Partner-level busy day
+                date=self.scheduled_date,
+                defaults={
+                    'entity_type': BusyDay.EntityType.PARTNER,
+                    'marked_by': BusyDay.MarkedBy.SYSTEM,
+                    'reason': f'Booked: {self.booking_id}',
+                    'booking': self,
+                },
+            )
+
+        # Cascade: when booking is cancelled, expired, or completed, expire all pending instant requests
+        # AND remove auto-created busy days
+        if self.status in (self.Status.CANCELLED, self.Status.EXPIRED, self.Status.COMPLETED):
             self.instant_requests.filter(
                 status='PENDING',
             ).update(
                 status='EXPIRED',
                 responded_at=timezone.now(),
             )
+            # Remove system-created busy days for this booking
+            from availability.models import BusyDay
+            BusyDay.objects.filter(booking=self).delete()
 
     def __str__(self):
         type_label = "⚡" if self.booking_type == self.BookingType.INSTANT else "📅"

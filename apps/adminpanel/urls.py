@@ -4,6 +4,10 @@ from . import views
 app_name = 'adminpanel'
 
 urlpatterns = [
+    # ── Auth ───────────────────────────────────────────────────────────────
+    path('login/', views.panel_login, name='login'),
+    path('logout/', views.panel_logout, name='logout'),
+
     # ── Dashboard ──────────────────────────────────────────────────────────
     path('', views.dashboard, name='dashboard'),
 
@@ -27,10 +31,9 @@ urlpatterns = [
     path('manage/users/<uuid:user_id>/services/<int:service_id>/images/upload/', views.service_image_upload, name='service-image-upload'),
     path('manage/users/<uuid:user_id>/services/<int:service_id>/images/<int:image_id>/delete/', views.service_image_delete, name='service-image-delete'),
 
-    # ── Legacy VLE flow (preserved) ────────────────────────────────────────
-    path('register/user/', views.register_user, name='register-user'),
-    path('register/<uuid:user_id>/next/', views.registration_next, name='registration-next'),
-    path('register/<uuid:user_id>/create-worker-profile/', views.create_worker_profile, name='create-worker-profile'),
-    path('register/<uuid:user_id>/worker-details/', views.worker_details, name='worker-details'),
-    path('register/<uuid:user_id>/list-machinery/', views.create_machinery_profile_placeholder, name='list-machinery'),
+    # ── Calendar / Availability ───────────────────────────────────────────
+    path('manage/users/<uuid:user_id>/calendar/', views.agent_worker_calendar, name='worker-calendar'),
+    path('manage/users/<uuid:user_id>/calendar/toggle/', views.agent_toggle_busy_day, name='worker-calendar-toggle'),
+    path('manage/users/<uuid:user_id>/calendar/booking-action/', views.agent_worker_booking_action, name='worker-calendar-booking-action'),
+    path('manage/availability/', views.agent_workers_by_date, name='workers-by-date'),
 ]

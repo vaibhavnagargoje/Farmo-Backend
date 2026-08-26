@@ -82,6 +82,7 @@ class ServiceListSerializer(serializers.ModelSerializer):
     """
     category_name = serializers.SerializerMethodField()
     partner_name = serializers.CharField(source='partner.user.customer_profile.full_name', read_only=True, default='')
+    partner_id = serializers.IntegerField(source='partner.id', read_only=True)
     partner_rating = serializers.DecimalField(source='partner.rating', max_digits=3, decimal_places=2, read_only=True)
     partner_profile_picture = serializers.SerializerMethodField()
     thumbnail = serializers.SerializerMethodField()
@@ -94,7 +95,7 @@ class ServiceListSerializer(serializers.ModelSerializer):
         model = Service
         fields = [
             'id', 'title', 'description', 'price', 'price_unit', 'category', 'category_name',
-            'partner_name', 'partner_rating', 'partner_profile_picture', 'status', 'is_available', 'thumbnail',
+            'partner_name', 'partner_id', 'partner_rating', 'partner_profile_picture', 'status', 'is_available', 'thumbnail',
             'partner_location', 'service_radius_km', 'images', 'distance_km'
         ]
 

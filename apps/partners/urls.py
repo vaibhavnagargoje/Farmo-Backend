@@ -8,12 +8,15 @@ from .views import (
     PartnerPublicView,
     PartnerDashboardView,
     LaborDetailsView,
-    NearbyLaborsView
+    NearbyLaborsView,
 )
 
 app_name = 'partners'
 
 urlpatterns = [
+    # Master Labor Skills List (multi-language) - DEPRECATED, moved to labor_services
+    # path('skills/', LaborSkillListView.as_view(), name='skills-list'),
+
     # Partner Status Check (for onboarding flow)
     path('status/', PartnerStatusView.as_view(), name='status'),
     

@@ -83,6 +83,8 @@ INSTALLED_APPS = [
     'users',
     'locations',
     'search',
+    'labor_services',
+    'availability',
 ]
 
 

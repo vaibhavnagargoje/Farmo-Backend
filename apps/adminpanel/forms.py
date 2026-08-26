@@ -1,6 +1,8 @@
 from django import forms
 
-from partners.models import LaborDetails, MachineryDetails, PartnerProfile, TransportDetails
+from locations.models import UserLocation
+from partners.models import MachineryDetails, PartnerProfile, TransportDetails
+from labor_services.models import LaborDetails, LaborServiceType
 from services.models import Category, Service, ServiceImage
 from users.models import CustomerProfile, User
 
@@ -33,60 +35,6 @@ def _apply(fields, mapping=None):
             field.widget.attrs.update(TEXT_ATTRS)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 1. Register new user (used by old VLE flow + "Add User" in new panel)
-# ─────────────────────────────────────────────────────────────────────────────
-
-MARATHI_SKILLS = [
-    "गवंडी", "मदतनीस", "कापणी कामगार", "नांगरणी", "खुरपणी",
-    "फवारणी", "हमाल", "चालक", "सुतार", "पेंटर",
-    "इलेक्ट्रिशियन", "प्लंबर", "शेतीकाम", "पेरणी",
-]
-
-
-class AgentUserRegistrationForm(forms.Form):
-    phone_number = forms.CharField(max_length=15, label="Mobile Number",
-                                   error_messages={"required": "Mobile number is required."})
-    email = forms.EmailField(required=False, label="Email (optional)")
-    full_name = forms.CharField(max_length=255, label="Full Name",
-                                error_messages={"required": "Full name is required."})
-    profile_picture = forms.ImageField(required=False, label="Profile Photo (optional)")
-    address = forms.CharField(label="Address", widget=forms.Textarea(attrs={"rows": 3}), required=False)
-    latitude = forms.DecimalField(max_digits=9, decimal_places=6, required=False, label="Latitude")
-    longitude = forms.DecimalField(max_digits=9, decimal_places=6, required=False, label="Longitude")
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        _apply(self.fields)
-        self.fields["phone_number"].widget.attrs["placeholder"] = "e.g. 9876543210"
-        self.fields["email"].widget.attrs["placeholder"] = "example@email.com"
-        self.fields["full_name"].widget.attrs["placeholder"] = "Full name"
-        self.fields["address"].widget.attrs["placeholder"] = "Village / Taluka / District"
-        self.fields["latitude"].widget.attrs["placeholder"] = "18.520430"
-        self.fields["longitude"].widget.attrs["placeholder"] = "73.856744"
-
-    def clean_phone_number(self):
-        phone = self.cleaned_data["phone_number"].strip()
-        if User.objects.filter(phone_number=phone).exists():
-            raise forms.ValidationError(
-                f"A user with phone {phone} is already registered. "
-                "Search for them in the Users list instead."
-            )
-        return phone
-
-    def clean_email(self):
-        raw = self.cleaned_data.get("email") or ""
-        email = raw.strip().lower()
-        if not email:
-            # Leave email as None — don't store empty strings
-            return None
-        if User.objects.filter(email=email).exists():
-            raise forms.ValidationError(
-                f"Email {email} is already linked to another account. "
-                "Leave this blank or use a different email."
-            )
-        return email
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 2. User Info (role + active status)
@@ -109,7 +57,7 @@ class UserInfoForm(forms.ModelForm):
 class CustomerProfileAdminForm(forms.ModelForm):
     class Meta:
         model = CustomerProfile
-        fields = ["full_name", "profile_picture"]
+        fields = ["full_name", "gender", "profile_picture"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -164,36 +112,6 @@ class PartnerProfileAdminForm(forms.ModelForm):
         self.fields["about"].required = False
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 6. Labor Details
-# ─────────────────────────────────────────────────────────────────────────────
-
-class LaborDetailsAdminForm(forms.ModelForm):
-    skills = forms.MultipleChoiceField(
-        choices=[(s, s) for s in MARATHI_SKILLS],
-        widget=forms.CheckboxSelectMultiple,
-        required=False,
-        label="Skills",
-    )
-
-    class Meta:
-        model = LaborDetails
-        fields = ["daily_wage_estimate", "skills", "skill_card_photo", "is_migrant_worker"]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        _apply(self.fields)
-        self.fields["daily_wage_estimate"].widget.attrs["placeholder"] = "e.g. 800"
-        self.fields["daily_wage_estimate"].required = False
-
-        instance = kwargs.get("instance")
-        if instance and instance.pk and instance.skills:
-            self.initial["skills"] = [s.strip() for s in instance.skills.split(",") if s.strip()]
-
-    def clean_skills(self):
-        selected = self.cleaned_data.get("skills") or []
-        return ", ".join(selected)
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 7. Machinery Details
@@ -211,10 +129,6 @@ class MachineryDetailsAdminForm(forms.ModelForm):
         self.fields["fleet_size"].widget.attrs["placeholder"] = "1"
         self.fields["owner_dl_number"].required = False
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 8. Transport Details
-# ─────────────────────────────────────────────────────────────────────────────
 
 class TransportDetailsAdminForm(forms.ModelForm):
     class Meta:
@@ -255,6 +169,30 @@ class ServiceAdminForm(forms.ModelForm):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 6. Labor Details
+# ─────────────────────────────────────────────────────────────────────────────
+
+class LaborDetailsAdminForm(forms.ModelForm):
+    service_types = forms.ModelMultipleChoiceField(
+        queryset=LaborServiceType.objects.filter(is_active=True),
+        widget=forms.CheckboxSelectMultiple,
+        required=False,
+        label="Service Types",
+    )
+
+    class Meta:
+        model = LaborDetails
+        fields = ["daily_wage_estimate", "service_types", "skill_card_photo", "is_migrant_worker"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _apply(self.fields)
+        self.fields["daily_wage_estimate"].widget.attrs["placeholder"] = "e.g. 800"
+        self.fields["daily_wage_estimate"].required = False
+        self.fields["service_types"].label_from_instance = lambda obj: obj.get_name('mr')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 10. Service Image
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -269,98 +207,106 @@ class ServiceImageAdminForm(forms.ModelForm):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Legacy VLE forms (kept for the old registration flow)
+# 11. Add User (combined: User + CustomerProfile + UserLocation)
 # ─────────────────────────────────────────────────────────────────────────────
 
-class WorkerPartnerProfileForm(forms.ModelForm):
-    class Meta:
-        model = PartnerProfile
-        fields = ["aadhar_card_front", "aadhar_card_back", "pan_card"]
+class AddUserForm(forms.Form):
+    """
+    Single combined form for admin to create a new user with:
+    - User account fields (phone, email, language, active status)
+    - CustomerProfile fields (full name, gender)
+    - UserLocation fields (address + coordinates via JS GPS)
+
+    NOTE: Role is intentionally excluded — all users created via this form
+    are assigned the CUSTOMER role by default for security reasons.
+    Admins/SuperAdmins can change the role later from the user detail page.
+    """
+
+    # ── Account ───────────────────────────────────────────────────────────────
+    phone_number = forms.CharField(
+        max_length=15,
+        label="Phone Number",
+        help_text="Primary login identifier, e.g. +919876543210",
+    )
+    email = forms.EmailField(
+        required=False,
+        label="Email Address",
+        help_text="Optional",
+    )
+    preferred_language = forms.ChoiceField(
+        choices=User.Language.choices,
+        initial=User.Language.ENGLISH,
+        label="Preferred Language",
+    )
+    is_active = forms.BooleanField(
+        required=False,
+        initial=True,
+        label="Active",
+        help_text="User can log in immediately after creation",
+    )
+
+    # ── Customer Profile ──────────────────────────────────────────────────────
+    full_name = forms.CharField(
+        max_length=255,
+        required=False,
+        label="Full Name",
+    )
+    gender = forms.ChoiceField(
+        choices=[("", "— Select gender —")] + list(CustomerProfile.Gender.choices),
+        required=False,
+        label="Gender",
+    )
+
+    # ── Location ──────────────────────────────────────────────────────────────
+    address = forms.CharField(
+        widget=forms.Textarea(attrs={"rows": 3}),
+        required=False,
+        label="Address",
+        help_text="Village / Taluka / District",
+    )
+    latitude = forms.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        required=False,
+        label="Latitude",
+        help_text="Auto-filled via GPS",
+    )
+    longitude = forms.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        required=False,
+        label="Longitude",
+        help_text="Auto-filled via GPS",
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        css = (
-            "mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 "
-            "text-sm text-slate-900 file:mr-3 file:rounded-md file:border-0 "
-            "file:bg-slate-100 file:px-3 file:py-2 file:text-slate-700"
-        )
-        for name in ("aadhar_card_front", "aadhar_card_back", "pan_card"):
-            self.fields[name].required = False
-            self.fields[name].widget.attrs.update({"class": css})
+        _apply(self.fields)
+        self.fields["phone_number"].widget.attrs.update({"placeholder": "+91 98765 43210"})
+        self.fields["email"].widget.attrs.update({"placeholder": "farmer@example.com (optional)"})
+        self.fields["full_name"].widget.attrs.update({"placeholder": "Full name of the user"})
+        self.fields["address"].widget.attrs.update({"placeholder": "e.g. At. Shirur, Tal. Shirur, Dist. Pune"})
+        self.fields["latitude"].widget.attrs.update({
+            "placeholder": "18.520430",
+            "readonly": "readonly",
+            "id": "id_latitude",
+        })
+        self.fields["longitude"].widget.attrs.update({
+            "placeholder": "73.856744",
+            "readonly": "readonly",
+            "id": "id_longitude",
+        })
 
-    def clean(self):
-        cleaned_data = super().clean()
-        has_front = bool(
-            cleaned_data.get("aadhar_card_front")
-            or (self.instance and getattr(self.instance, "aadhar_card_front", None))
-        )
-        has_back = bool(
-            cleaned_data.get("aadhar_card_back")
-            or (self.instance and getattr(self.instance, "aadhar_card_back", None))
-        )
-        has_pan = bool(
-            cleaned_data.get("pan_card")
-            or (self.instance and getattr(self.instance, "pan_card", None))
-        )
-        if not has_pan and not (has_front and has_back):
-            raise forms.ValidationError(
-                "Aadhaar (front & back) or PAN card — at least one document is required."
-            )
-        return cleaned_data
+    def clean_phone_number(self):
+        phone = self.cleaned_data.get("phone_number", "").strip()
+        if User.objects.filter(phone_number=phone).exists():
+            raise forms.ValidationError("A user with this phone number already exists.")
+        return phone
 
-
-class LaborDetailsForm(forms.ModelForm):
-    skills = forms.MultipleChoiceField(
-        choices=[(s, s) for s in MARATHI_SKILLS],
-        widget=forms.CheckboxSelectMultiple,
-        required=True,
-        label="कौशल्ये",
-        error_messages={"required": "किमान एक कौशल्य निवडा."},
-    )
-    is_migrant_worker = forms.ChoiceField(
-        choices=(("yes", "होय"), ("no", "नाही")),
-        widget=forms.RadioSelect,
-        label="स्थलांतरित कामगार आहे का?",
-        required=True,
-    )
-
-    class Meta:
-        model = LaborDetails
-        fields = ["daily_wage_estimate", "skills", "skill_card_photo", "is_migrant_worker"]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        field_css = (
-            "mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 "
-            "text-sm text-slate-900 focus:border-emerald-500 focus:outline-none "
-            "focus:ring-2 focus:ring-emerald-200"
-        )
-        file_css = (
-            "mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 "
-            "text-sm text-slate-900 file:mr-3 file:rounded-md file:border-0 "
-            "file:bg-slate-100 file:px-3 file:py-2 file:text-slate-700"
-        )
-        self.fields["daily_wage_estimate"].required = True
-        self.fields["daily_wage_estimate"].widget.attrs.update({"class": field_css, "placeholder": "उदा. ८००"})
-        self.fields["daily_wage_estimate"].label = "दैनिक मजुरी"
-        self.fields["skills"].widget.attrs.update({"class": "peer sr-only"})
-        self.fields["skill_card_photo"].required = False
-        self.fields["skill_card_photo"].widget.attrs.update({"class": file_css})
-        self.fields["skill_card_photo"].label = "कौशल्य कार्ड फोटो (ऐच्छिक)"
-        self.fields["is_migrant_worker"].widget.attrs.update({"class": "peer sr-only"})
-
-        instance = kwargs.get("instance")
-        if instance and instance.pk:
-            self.initial["is_migrant_worker"] = "yes" if instance.is_migrant_worker else "no"
-            self.initial["skills"] = [s.strip() for s in (instance.skills or "").split(",") if s.strip()]
-
-    def clean_skills(self):
-        selected = self.cleaned_data.get("skills") or []
-        if not selected:
-            raise forms.ValidationError("किमान एक कौशल्य निवडा.")
-        return ", ".join(selected)
-
-    def clean(self):
-        cleaned_data = super().clean()
-        cleaned_data["is_migrant_worker"] = cleaned_data.get("is_migrant_worker") == "yes"
-        return cleaned_data
+    def clean_email(self):
+        email = self.cleaned_data.get("email", "").strip()
+        if not email:
+            return None  # Store as NULL, not empty string
+        if User.objects.filter(email=email).exists():
+            raise forms.ValidationError("A user with this email already exists.")
+        return email

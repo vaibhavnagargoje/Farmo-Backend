@@ -124,7 +124,12 @@ class BookingCreateSerializer(serializers.ModelSerializer):
     def validate_service_id(self, value):
         from services.models import Service
         try:
-            service = Service.objects.get(id=value, status=Service.Status.ACTIVE, is_available=True, partner__is_available=True)
+            service = Service.objects.get(
+                id=value,
+                status=Service.Status.ACTIVE,
+                is_available=True,
+                partner__is_available=True,  # Master switch still checked
+            )
         except Service.DoesNotExist:
             raise serializers.ValidationError("Service not found or not available.")
         return value
@@ -150,6 +155,21 @@ class BookingCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 "price_unit": f"This service is priced in {service.price_unit}."
             })
+
+        # ── Calendar Availability Check ──
+        # Check if the partner is busy on the scheduled date
+        scheduled_date = attrs.get('scheduled_date')
+        if scheduled_date:
+            from availability.models import BusyDay
+            is_busy = BusyDay.objects.filter(
+                partner=service.partner,
+                date=scheduled_date,
+                service__isnull=True,  # Partner-level busy
+            ).exists()
+            if is_busy:
+                raise serializers.ValidationError({
+                    "scheduled_date": "This provider is not available on the selected date."
+                })
 
         # Block duplicate: same customer + same provider while an order is still active
         user = self.context['request'].user
@@ -325,11 +345,20 @@ class InstantBookingCreateSerializer(serializers.Serializer):
         Uses partner's UserLocation for coordinates.
         Returns queryset annotated with distance.
         """
+        from availability.models import BusyDay
+        today = timezone.now().date()
+
+        # Get partner IDs that are busy today
+        busy_partner_ids = BusyDay.objects.filter(
+            date=today,
+            service__isnull=True,  # Partner-level busy
+        ).values_list('partner_id', flat=True)
+
         queryset = Service.objects.filter(
             category=category,
             status=Service.Status.ACTIVE,
             is_available=True,
-            partner__is_available=True,
+            partner__is_available=True,  # Master switch
             partner__is_verified=True,
         ).exclude(
             partner__user__location__isnull=True
@@ -337,6 +366,8 @@ class InstantBookingCreateSerializer(serializers.Serializer):
             partner__user__location__latitude__isnull=True
         ).exclude(
             partner__user__location__longitude__isnull=True
+        ).exclude(
+            partner_id__in=busy_partner_ids  # Calendar availability check
         )
 
         queryset = queryset.annotate(

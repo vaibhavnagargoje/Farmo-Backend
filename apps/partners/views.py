@@ -8,7 +8,9 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.db import transaction
 
-from .models import PartnerProfile, LaborDetails, MachineryDetails, TransportDetails
+from rest_framework import permissions
+from .models import PartnerProfile, MachineryDetails, TransportDetails
+from labor_services.models import LaborDetails
 from .serializers import (
     PartnerProfileSerializer,
     PartnerRegistrationSerializer,
@@ -16,7 +18,7 @@ from .serializers import (
     LaborDetailsSerializer,
     MachineryDetailsSerializer,
     TransportDetailsSerializer,
-    LaborDetailsUpdateSerializer
+    LaborDetailsUpdateSerializer,
 )
 
 User = get_user_model()
@@ -81,9 +83,10 @@ class PartnerRegistrationView(APIView):
         # QueryDict cannot hold nested dicts, so we handle LaborDetails
         # manually instead of going through the nested serializer.
         labor_fields = {}
+        service_type_ids = []
         partner_type = request.data.get('partner_type', '')
         if partner_type == 'LABOR':
-            for key in ('skills', 'daily_wage_estimate', 'is_migrant_worker'):
+            for key in ('daily_wage_estimate', 'is_migrant_worker'):
                 val = request.data.get(key)
                 if val is not None:
                     if key == 'is_migrant_worker':
@@ -93,6 +96,16 @@ class PartnerRegistrationView(APIView):
             skill_photo = request.data.get('skill_card_photo')
             if skill_photo and hasattr(skill_photo, 'read'):
                 labor_fields['skill_card_photo'] = skill_photo
+            # Service type IDs (M2M)
+            raw_ids = request.data.getlist('service_type_ids', [])
+            if not raw_ids:
+                ids_str = request.data.get('service_type_ids', '')
+                if ids_str:
+                    raw_ids = [x.strip() for x in str(ids_str).split(',') if x.strip()]
+            try:
+                service_type_ids = [int(x) for x in raw_ids]
+            except (ValueError, TypeError):
+                service_type_ids = []
 
         serializer = PartnerRegistrationSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
@@ -100,7 +113,9 @@ class PartnerRegistrationView(APIView):
 
             # Create LaborDetails after partner profile exists
             if partner_type == 'LABOR' and labor_fields:
-                LaborDetails.objects.create(partner=partner, **labor_fields)
+                labor = LaborDetails.objects.create(partner=partner, **labor_fields)
+                if service_type_ids:
+                    labor.service_types.set(service_type_ids)
 
             return Response({
                 "message": "Partner registration successful. Awaiting KYC verification.",
@@ -228,13 +243,19 @@ class PartnerOnboardOrAddServiceView(APIView):
 
         elif partner_type == 'LABOR':
             # Parse labor fields
-            skills = request.data.get('skills', '').strip()
+            service_type_ids_raw = request.data.getlist('service_type_ids', [])
+            # Also support comma-separated string fallback
+            if not service_type_ids_raw:
+                ids_str = request.data.get('service_type_ids', '')
+                if ids_str:
+                    service_type_ids_raw = [x.strip() for x in str(ids_str).split(',') if x.strip()]
+
             daily_wage = request.data.get('daily_wage_estimate')
             is_migrant = str(request.data.get('is_migrant_worker', 'false')).lower() in ('true', '1')
             skill_card = request.FILES.get('skill_card_photo')
 
-            if not skills:
-                return Response({"error": "skills is required for LABOR."}, status=status.HTTP_400_BAD_REQUEST)
+            if not service_type_ids_raw:
+                return Response({"error": "service_type_ids is required for LABOR."}, status=status.HTTP_400_BAD_REQUEST)
             if not daily_wage:
                 return Response({"error": "daily_wage_estimate is required for LABOR."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -245,6 +266,17 @@ class PartnerOnboardOrAddServiceView(APIView):
             except (ValueError, TypeError):
                 return Response({"error": "daily_wage_estimate must be a positive number."}, status=status.HTTP_400_BAD_REQUEST)
 
+            # Validate service type IDs
+            from labor_services.models import LaborServiceType
+            try:
+                valid_ids = [int(x) for x in service_type_ids_raw]
+            except (ValueError, TypeError):
+                return Response({"error": "service_type_ids must be a list of integers."}, status=status.HTTP_400_BAD_REQUEST)
+
+            existing_types = LaborServiceType.objects.filter(id__in=valid_ids, is_active=True)
+            if existing_types.count() != len(valid_ids):
+                return Response({"error": "One or more service_type_ids are invalid."}, status=status.HTTP_400_BAD_REQUEST)
+
             # Ensure partner_type on profile is set to LABOR
             if partner.partner_type != PartnerProfile.PartnerType.LABOR:
                 partner.partner_type = PartnerProfile.PartnerType.LABOR
@@ -254,16 +286,17 @@ class PartnerOnboardOrAddServiceView(APIView):
             labor, created = LaborDetails.objects.get_or_create(
                 partner=partner,
                 defaults={
-                    'skills': skills,
                     'daily_wage_estimate': wage_val,
                     'is_migrant_worker': is_migrant,
                 }
             )
             if not created:
-                labor.skills = skills
                 labor.daily_wage_estimate = wage_val
                 labor.is_migrant_worker = is_migrant
-                labor.save()
+                labor.save(update_fields=['daily_wage_estimate', 'is_migrant_worker'])
+
+            # Set M2M service types
+            labor.service_types.set(valid_ids)
 
             if skill_card and hasattr(skill_card, 'read'):
                 labor.skill_card_photo = skill_card
@@ -494,11 +527,16 @@ class NearbyLaborsView(APIView):
                 except Exception:
                     pass
 
+                # Language for display
+                lang = getattr(request.user, 'preferred_language', 'en') if request.user.is_authenticated else request.query_params.get('lang', 'en')
+                from labor_services.serializers import LaborServiceTypeSerializer
+                skills_list = LaborServiceTypeSerializer(labor.service_types.all(), many=True, context={'request': request}).data if labor else []
+
                 results.append({
                     "id": partner.id,
                     "full_name": full_name or partner.user.phone_number,
                     "profile_picture": profile_pic_url,
-                    "skills": labor.skills if labor else "",
+                    "skills": skills_list,
                     "daily_wage_estimate": str(labor.daily_wage_estimate) if labor and labor.daily_wage_estimate else None,
                     "is_migrant_worker": labor.is_migrant_worker if labor else False,
                     "skill_card_photo": request.build_absolute_uri(labor.skill_card_photo.url) if labor and labor.skill_card_photo else None,
@@ -516,3 +554,7 @@ class NearbyLaborsView(APIView):
             "distance_filter_km": distance_km,
             "results": results,
         })
+
+
+
+

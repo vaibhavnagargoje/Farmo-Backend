@@ -59,6 +59,12 @@ urlpatterns = [
     # Search App
     path('api/v1/search/', include('search.urls', namespace='search')),
 
+    # Availability Calendar App
+    path('api/v1/availability/', include('availability.urls', namespace='availability')),
+
+    # Labor Services App
+    path('api/v1/labor/', include('labor_services.urls', namespace='labor_services')),
+
     # Admin Panel App
     path('api/v1/admin/', include('adminpanel.urls', namespace='adminpanel')),
 ]

@@ -3,77 +3,257 @@
 {% block nav_users %}active{% endblock %}
 
 {% block breadcrumb %}
-<a href="{% url 'adminpanel:users-list' %}" class="text-slate-400 hover:text-slate-600 text-sm">Users</a>
-<svg class="w-4 h-4 text-slate-300 mx-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+<a href="{% url 'adminpanel:users-list' %}" class="text-slate-500 hover:text-slate-700 transition-colors">Users</a>
+<svg class="w-4 h-4 text-slate-400 mx-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
 <span class="font-semibold text-slate-800 text-sm">Add New User</span>
 {% endblock %}
 
+{% block topbar_actions %}
+<a href="{% url 'adminpanel:users-list' %}" class="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 px-3 py-2 rounded-lg hover:bg-slate-100 transition-all">
+  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+  Back to Users
+</a>
+{% endblock %}
+
 {% block content %}
-<div class="max-w-2xl">
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="px-5 py-4 border-b border-slate-100">
-            <h2 class="font-semibold text-slate-900">Add New User</h2>
-            <p class="text-xs text-slate-400 mt-0.5">Create a user account. You can fill partner details on the next screen.</p>
-        </div>
-        <div class="px-5 py-5">
-            <form method="post" enctype="multipart/form-data">
-                {% csrf_token %}
-                <div class="space-y-4">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">Mobile Number *</label>
-                            {{ form.phone_number }}
-                            {% if form.phone_number.errors %}<p class="text-xs text-rose-500 mt-1">{{ form.phone_number.errors|join:", " }}</p>{% endif %}
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">Email <span class="text-slate-400 font-normal">(optional)</span></label>
-                            {{ form.email }}
-                            {% if form.email.errors %}<p class="text-xs text-rose-500 mt-1">{{ form.email.errors|join:", " }}</p>{% endif %}
-                        </div>
-                    </div>
 
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1.5">Full Name *</label>
-                        {{ form.full_name }}
-                        {% if form.full_name.errors %}<p class="text-xs text-rose-500 mt-1">{{ form.full_name.errors|join:", " }}</p>{% endif %}
-                    </div>
+<form method="post" id="add-user-form" autocomplete="off" novalidate>
+  {% csrf_token %}
 
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1.5">Profile Photo <span class="text-slate-400 font-normal">(optional)</span></label>
-                        {{ form.profile_picture }}
-                    </div>
+  <!-- Page title -->
+  <div class="mb-6">
+    <h1 class="text-xl font-bold text-slate-900">Add New User</h1>
+    <p class="text-sm text-slate-500 mt-0.5">All fields are required. New users are created with the <strong>Customer</strong> role — you can change it afterwards.</p>
+  </div>
 
-                    <div class="pt-2 border-t border-slate-100">
-                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Location <span class="font-normal text-slate-400 normal-case">(optional)</span></p>
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-600 mb-1.5">Address</label>
-                                {{ form.address }}
-                            </div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Latitude</label>
-                                    {{ form.latitude }}
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Longitude</label>
-                                    {{ form.longitude }}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+  <!-- Single form panel -->
+  <div class="bg-white border border-slate-200 shadow-sm" style="border-radius:12px;">
 
-                <div class="mt-6 flex items-center justify-between">
-                    <a href="{% url 'adminpanel:users-list' %}"
-                       class="text-sm text-slate-400 hover:text-slate-600 transition-colors">← Cancel</a>
-                    <button type="submit"
-                            class="bg-green-500 hover:bg-green-600 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-colors shadow-sm">
-                        Create User →
-                    </button>
-                </div>
-            </form>
-        </div>
+    <!-- ── Row 1: Phone + Email ────────────────────────────────── -->
+    <div class="form-grid px-6 pt-6 pb-4">
+      <div class="f-group">
+        <label for="id_phone_number" class="f-label">Phone Number</label>
+        {{ form.phone_number }}
+        {% if form.phone_number.errors %}<p class="f-err">{{ form.phone_number.errors|join:", " }}</p>{% endif %}
+      </div>
+      <div class="f-group">
+        <label for="id_email" class="f-label">Email <span class="f-opt">optional</span></label>
+        {{ form.email }}
+        {% if form.email.errors %}<p class="f-err">{{ form.email.errors|join:", " }}</p>{% endif %}
+      </div>
     </div>
-</div>
+
+    <div class="f-hr"></div>
+
+    <!-- ── Row 2: Full Name + Gender ─────────────────────────────── -->
+    <div class="form-grid px-6 py-4">
+      <div class="f-group">
+        <label for="id_full_name" class="f-label">Full Name</label>
+        {{ form.full_name }}
+        {% if form.full_name.errors %}<p class="f-err">{{ form.full_name.errors|join:", " }}</p>{% endif %}
+      </div>
+      <div class="f-group">
+        <label for="id_gender" class="f-label">Gender</label>
+        {{ form.gender }}
+        {% if form.gender.errors %}<p class="f-err">{{ form.gender.errors|join:", " }}</p>{% endif %}
+      </div>
+    </div>
+
+    <div class="f-hr"></div>
+
+    <!-- ── Row 3: Language + Active ──────────────────────────────── -->
+    <div class="form-grid px-6 py-4">
+      <div class="f-group">
+        <label for="id_preferred_language" class="f-label">Preferred Language</label>
+        {{ form.preferred_language }}
+        {% if form.preferred_language.errors %}<p class="f-err">{{ form.preferred_language.errors|join:", " }}</p>{% endif %}
+      </div>
+      <div class="f-group">
+        <label class="f-label">Account Status</label>
+        <div class="flex items-center gap-3 mt-1" style="height:38px;">
+          <div class="toggle-wrap">
+            {{ form.is_active }}
+            <label for="{{ form.is_active.id_for_label }}"><div class="toggle-track"></div></label>
+          </div>
+          <span class="text-sm text-slate-600">Allow user to log in</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="f-hr"></div>
+
+    <!-- ── Row 4: Address (full width) ───────────────────────────── -->
+    <div class="px-6 py-4">
+      <div class="f-group">
+        <label for="id_address" class="f-label">Address</label>
+        {{ form.address }}
+        {% if form.address.errors %}<p class="f-err">{{ form.address.errors|join:", " }}</p>{% endif %}
+      </div>
+    </div>
+
+    <div class="f-hr"></div>
+
+    <!-- ── Row 5: GPS Coordinates ─────────────────────────────────── -->
+    <div class="px-6 py-4">
+      <div class="flex items-center justify-between mb-3">
+        <p class="f-label mb-0">GPS Coordinates <span class="f-opt">auto-filled</span></p>
+        <button type="button" id="btn-get-coords" onclick="getCoordinates()"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-all">
+          <svg id="coords-pin" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          <svg id="coords-spin" class="w-3.5 h-3.5 hidden" style="animation:_spin 0.8s linear infinite" fill="none" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" style="opacity:.25"/>
+            <path fill="currentColor" style="opacity:.75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          <svg id="coords-ok" class="w-3.5 h-3.5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+          </svg>
+          <span id="coords-label">Detect from Device</span>
+        </button>
+      </div>
+
+      <div class="form-grid" style="gap:16px;">
+        <div class="f-group">
+          <label for="id_latitude" class="f-label-sm">Latitude</label>
+          {{ form.latitude }}
+        </div>
+        <div class="f-group">
+          <label for="id_longitude" class="f-label-sm">Longitude</label>
+          {{ form.longitude }}
+        </div>
+      </div>
+
+      <div id="coords-status" class="hidden mt-2.5 text-xs px-3 py-2 rounded-lg"></div>
+      <p class="mt-2 text-xs text-slate-400">Coordinates are read-only — click <strong>Detect from Device</strong> to auto-fill from your browser.</p>
+    </div>
+
+    <!-- ── Form footer ─────────────────────────────────────────────── -->
+    <div class="border-t border-slate-200 bg-slate-50 px-6 py-4 flex items-center justify-between" style="border-bottom-left-radius:12px;border-bottom-right-radius:12px;">
+      <a href="{% url 'adminpanel:users-list' %}"
+         class="text-sm font-medium text-slate-500 hover:text-slate-800 px-4 py-2 rounded-lg hover:bg-slate-200 transition-all">
+        Cancel
+      </a>
+      <button type="submit" id="btn-submit"
+              class="inline-flex items-center gap-2 bg-green-500 hover:bg-green-600 active:bg-green-700 text-white text-sm font-semibold px-6 py-2.5 rounded-lg shadow-sm transition-all">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+        </svg>
+        Create User
+      </button>
+    </div>
+
+  </div><!-- /form panel -->
+
+</form>
+
+<style>
+@keyframes _spin { from { transform:rotate(0) } to { transform:rotate(360deg) } }
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.f-group {
+  display: flex;
+  flex-direction: column;
+}
+.f-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 6px;
+}
+.f-label-sm {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+  margin-bottom: 5px;
+}
+.f-opt {
+  font-size: 11px;
+  font-weight: 400;
+  color: #94a3b8;
+  margin-left: 3px;
+}
+.f-err {
+  font-size: 11px;
+  color: #e11d48;
+  margin-top: 4px;
+}
+.f-hr {
+  height: 1px;
+  background: #f1f5f9;
+  margin: 0 24px;
+}
+input[readonly].form-input {
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+input[readonly].form-input:focus {
+  border-color: #e2e8f0;
+  box-shadow: none;
+}
+</style>
+
+<script>
+function getCoordinates() {
+  var btn = document.getElementById('btn-get-coords');
+  if (!navigator.geolocation) { showStatus('error', 'Geolocation not supported.'); return; }
+  btn.disabled = true;
+  id('coords-pin').classList.add('hidden');
+  id('coords-spin').classList.remove('hidden');
+  id('coords-ok').classList.add('hidden');
+  id('coords-label').textContent = 'Detecting\u2026';
+  id('coords-status').classList.add('hidden');
+
+  navigator.geolocation.getCurrentPosition(
+    function(p) {
+      var lat = p.coords.latitude.toFixed(6);
+      var lng = p.coords.longitude.toFixed(6);
+      id('id_latitude').value = lat;
+      id('id_longitude').value = lng;
+      id('coords-spin').classList.add('hidden');
+      id('coords-ok').classList.remove('hidden');
+      id('coords-label').textContent = 'Detected';
+      btn.classList.replace('bg-emerald-50','bg-green-100');
+      btn.classList.replace('text-emerald-700','text-green-800');
+      btn.classList.replace('border-emerald-200','border-green-300');
+      showStatus('success', 'Detected: ' + lat + ', ' + lng + ' (~' + Math.round(p.coords.accuracy) + 'm)');
+      setTimeout(function(){ btn.disabled = false; }, 3000);
+    },
+    function(e) {
+      btn.disabled = false;
+      id('coords-spin').classList.add('hidden');
+      id('coords-pin').classList.remove('hidden');
+      id('coords-label').textContent = 'Detect from Device';
+      var msg = e.code===1 ? 'Access denied — allow location in browser settings.'
+              : e.code===2 ? 'Location unavailable. Check GPS/network.'
+              : e.code===3 ? 'Request timed out. Try again.'
+              : 'Could not get location.';
+      showStatus('error', msg);
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+}
+
+function showStatus(type, msg) {
+  var el = id('coords-status');
+  el.className = 'mt-2.5 text-xs px-3 py-2 rounded-lg ' + (type === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function id(x) { return document.getElementById(x); }
+
+id('add-user-form').addEventListener('submit', function() {
+  var btn = id('btn-submit');
+  btn.disabled = true;
+  btn.innerHTML = '<svg class="w-4 h-4" style="animation:_spin .8s linear infinite" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" style="opacity:.25"/><path fill="currentColor" style="opacity:.75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>\u00a0Creating\u2026';
+});
+</script>
+
 {% endblock %}
