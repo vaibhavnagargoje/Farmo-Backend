@@ -242,9 +242,24 @@ class PartnerOnboardOrAddServiceView(APIView):
             service_created = True
 
         elif partner_type == 'LABOR':
-            # Parse labor fields
+            import json
+            from labor_services.models import LaborServiceType, LaborServiceOffering, LaborPriceUnit
+
+            # ── Parse offerings (new format) or service_type_ids (old format) ──
+            offerings_raw = request.data.get('offerings')
+            offerings_list = None
+            if offerings_raw:
+                # offerings can arrive as JSON string (multipart) or already parsed (JSON body)
+                if isinstance(offerings_raw, str):
+                    try:
+                        offerings_list = json.loads(offerings_raw)
+                    except json.JSONDecodeError:
+                        return Response({"error": "offerings must be valid JSON."}, status=status.HTTP_400_BAD_REQUEST)
+                elif isinstance(offerings_raw, list):
+                    offerings_list = offerings_raw
+
+            # Fallback: old format with flat service_type_ids
             service_type_ids_raw = request.data.getlist('service_type_ids', [])
-            # Also support comma-separated string fallback
             if not service_type_ids_raw:
                 ids_str = request.data.get('service_type_ids', '')
                 if ids_str:
@@ -254,35 +269,113 @@ class PartnerOnboardOrAddServiceView(APIView):
             is_migrant = str(request.data.get('is_migrant_worker', 'false')).lower() in ('true', '1')
             skill_card = request.FILES.get('skill_card_photo')
 
-            if not service_type_ids_raw:
-                return Response({"error": "service_type_ids is required for LABOR."}, status=status.HTTP_400_BAD_REQUEST)
-            if not daily_wage:
-                return Response({"error": "daily_wage_estimate is required for LABOR."}, status=status.HTTP_400_BAD_REQUEST)
+            # ── Validate: must have offerings OR service_type_ids ──
+            if not offerings_list and not service_type_ids_raw:
+                return Response(
+                    {"error": "Either 'offerings' array or 'service_type_ids' is required for LABOR."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-            try:
-                wage_val = float(daily_wage)
-                if wage_val <= 0:
-                    raise ValueError()
-            except (ValueError, TypeError):
-                return Response({"error": "daily_wage_estimate must be a positive number."}, status=status.HTTP_400_BAD_REQUEST)
+            # ── Validate offerings entries ──
+            valid_price_units = list(LaborPriceUnit.objects.filter(is_active=True).values_list('id', flat=True))
+            validated_offerings = []
 
-            # Validate service type IDs
-            from labor_services.models import LaborServiceType
-            try:
-                valid_ids = [int(x) for x in service_type_ids_raw]
-            except (ValueError, TypeError):
-                return Response({"error": "service_type_ids must be a list of integers."}, status=status.HTTP_400_BAD_REQUEST)
+            if offerings_list:
+                for idx, entry in enumerate(offerings_list):
+                    st_id = entry.get('service_type_id')
+                    price = entry.get('price')
+                    p_unit = entry.get('price_unit')
+                    note = entry.get('note', '')
 
-            existing_types = LaborServiceType.objects.filter(id__in=valid_ids, is_active=True)
-            if existing_types.count() != len(valid_ids):
-                return Response({"error": "One or more service_type_ids are invalid."}, status=status.HTTP_400_BAD_REQUEST)
+                    if not st_id or not price or not p_unit:
+                        return Response(
+                            {"error": f"Offering #{idx + 1}: service_type_id, price, and price_unit are required."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    try:
+                        price_val = float(price)
+                        if price_val <= 0:
+                            raise ValueError()
+                    except (ValueError, TypeError):
+                        return Response(
+                            {"error": f"Offering #{idx + 1}: price must be a positive number."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                        
+                    try:
+                        p_unit_id = int(p_unit)
+                    except (ValueError, TypeError):
+                        return Response(
+                            {"error": f"Offering #{idx + 1}: invalid price_unit ID '{p_unit}'."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                        
+                    if p_unit_id not in valid_price_units:
+                        return Response(
+                            {"error": f"Offering #{idx + 1}: invalid price_unit ID '{p_unit_id}'."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
 
-            # Ensure partner_type on profile is set to LABOR
+                    validated_offerings.append({
+                        'service_type_id': int(st_id),
+                        'price': price_val,
+                        'price_unit_id': p_unit_id,
+                        'note': str(note).strip(),
+                    })
+
+                # Validate all referenced service types exist
+                offering_st_ids = [o['service_type_id'] for o in validated_offerings]
+                existing_types = LaborServiceType.objects.filter(id__in=offering_st_ids, is_active=True)
+                if existing_types.count() != len(set(offering_st_ids)):
+                    return Response({"error": "One or more service_type_ids in offerings are invalid."}, status=status.HTTP_400_BAD_REQUEST)
+
+            else:
+                # Old format: service_type_ids + daily_wage_estimate
+                if not daily_wage:
+                    return Response({"error": "daily_wage_estimate is required when using service_type_ids."}, status=status.HTTP_400_BAD_REQUEST)
+                try:
+                    wage_val = float(daily_wage)
+                    if wage_val <= 0:
+                        raise ValueError()
+                except (ValueError, TypeError):
+                    return Response({"error": "daily_wage_estimate must be a positive number."}, status=status.HTTP_400_BAD_REQUEST)
+
+                try:
+                    valid_ids = [int(x) for x in service_type_ids_raw]
+                except (ValueError, TypeError):
+                    return Response({"error": "service_type_ids must be a list of integers."}, status=status.HTTP_400_BAD_REQUEST)
+
+                existing_types = LaborServiceType.objects.filter(id__in=valid_ids, is_active=True)
+                if existing_types.count() != len(valid_ids):
+                    return Response({"error": "One or more service_type_ids are invalid."}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Convert old format → offerings using daily_wage as default price
+                default_unit = valid_price_units[0] if valid_price_units else None
+                for st in existing_types:
+                    validated_offerings.append({
+                        'service_type_id': st.id,
+                        'price': wage_val,
+                        'price_unit_id': st.default_price_unit_id if st.default_price_unit_id else default_unit,
+                        'note': '',
+                    })
+
+            # ── Ensure partner_type on profile is set to LABOR ──
             if partner.partner_type != PartnerProfile.PartnerType.LABOR:
                 partner.partner_type = PartnerProfile.PartnerType.LABOR
                 partner.save(update_fields=['partner_type'])
 
-            # Create or update LaborDetails
+            # ── Auto-calculate headline daily_wage_estimate (option A) ──
+            if daily_wage:
+                try:
+                    wage_val = float(daily_wage)
+                except (ValueError, TypeError):
+                    wage_val = None
+            else:
+                # Average of all per-skill prices as headline
+                prices = [o['price'] for o in validated_offerings]
+                wage_val = round(sum(prices) / len(prices), 2) if prices else None
+
+            # ── Create or update LaborDetails ──
             labor, created = LaborDetails.objects.get_or_create(
                 partner=partner,
                 defaults={
@@ -295,8 +388,17 @@ class PartnerOnboardOrAddServiceView(APIView):
                 labor.is_migrant_worker = is_migrant
                 labor.save(update_fields=['daily_wage_estimate', 'is_migrant_worker'])
 
-            # Set M2M service types
-            labor.service_types.set(valid_ids)
+            # ── Replace offerings (delete old, create new) ──
+            LaborServiceOffering.objects.filter(labor_details=labor).delete()
+            for o in validated_offerings:
+                if o['price_unit_id'] is not None:
+                    LaborServiceOffering.objects.create(
+                        labor_details=labor,
+                        service_type_id=o['service_type_id'],
+                        price=o['price'],
+                        price_unit_id=o['price_unit_id'],
+                        note=o['note'],
+                    )
 
             if skill_card and hasattr(skill_card, 'read'):
                 labor.skill_card_photo = skill_card
@@ -368,19 +470,119 @@ class LaborDetailsView(APIView):
         return Response({"labor_details": LaborDetailsSerializer(labor).data})
 
     def patch(self, request):
+        import json
+        from labor_services.models import LaborServiceType, LaborServiceOffering, LaborPriceUnit
+
         partner = get_object_or_404(PartnerProfile, user=request.user)
         if partner.partner_type != PartnerProfile.PartnerType.LABOR:
             return Response({"error": "Not a labor partner."}, status=status.HTTP_400_BAD_REQUEST)
 
         labor, created = LaborDetails.objects.get_or_create(partner=partner)
-        serializer = LaborDetailsUpdateSerializer(labor, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({
-                "message": "Labor details updated.",
-                "labor_details": LaborDetailsSerializer(labor).data
-            })
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # ── Handle offerings if provided ──
+        offerings_raw = request.data.get('offerings')
+        if offerings_raw is not None:
+            # Parse offerings JSON
+            if isinstance(offerings_raw, str):
+                try:
+                    offerings_list = json.loads(offerings_raw)
+                except json.JSONDecodeError:
+                    return Response({"error": "offerings must be valid JSON."}, status=status.HTTP_400_BAD_REQUEST)
+            elif isinstance(offerings_raw, list):
+                offerings_list = offerings_raw
+            else:
+                return Response({"error": "offerings must be a JSON array."}, status=status.HTTP_400_BAD_REQUEST)
+
+            if not isinstance(offerings_list, list) or len(offerings_list) == 0:
+                return Response({"error": "At least one offering is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Validate each offering
+            valid_price_units = list(LaborPriceUnit.objects.filter(is_active=True).values_list('id', flat=True))
+            validated_offerings = []
+
+            for idx, entry in enumerate(offerings_list):
+                st_id = entry.get('service_type_id')
+                price = entry.get('price')
+                p_unit = entry.get('price_unit')
+                note = entry.get('note', '')
+
+                if not st_id or not price or not p_unit:
+                    return Response(
+                        {"error": f"Offering #{idx + 1}: service_type_id, price, and price_unit are required."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                try:
+                    price_val = float(price)
+                    if price_val <= 0:
+                        raise ValueError()
+                except (ValueError, TypeError):
+                    return Response(
+                        {"error": f"Offering #{idx + 1}: price must be a positive number."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                try:
+                    p_unit_id = int(p_unit)
+                except (ValueError, TypeError):
+                    return Response(
+                        {"error": f"Offering #{idx + 1}: invalid price_unit ID '{p_unit}'."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                if p_unit_id not in valid_price_units:
+                    return Response(
+                        {"error": f"Offering #{idx + 1}: invalid price_unit ID '{p_unit_id}'."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                validated_offerings.append({
+                    'service_type_id': int(st_id),
+                    'price': price_val,
+                    'price_unit_id': p_unit_id,
+                    'note': str(note).strip(),
+                })
+
+            # Validate all referenced service types exist
+            offering_st_ids = [o['service_type_id'] for o in validated_offerings]
+            existing_types = LaborServiceType.objects.filter(id__in=offering_st_ids, is_active=True)
+            if existing_types.count() != len(set(offering_st_ids)):
+                return Response(
+                    {"error": "One or more service_type_ids in offerings are invalid."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Delete old offerings and create new ones
+            LaborServiceOffering.objects.filter(labor_details=labor).delete()
+            for o in validated_offerings:
+                LaborServiceOffering.objects.create(
+                    labor_details=labor,
+                    service_type_id=o['service_type_id'],
+                    price=o['price'],
+                    price_unit_id=o['price_unit_id'],
+                    note=o['note'],
+                )
+
+            # Auto-compute headline daily_wage_estimate
+            prices = [o['price'] for o in validated_offerings]
+            labor.daily_wage_estimate = round(sum(prices) / len(prices), 2) if prices else None
+            labor.save(update_fields=['daily_wage_estimate'])
+
+        # ── Handle scalar fields ──
+        is_migrant_raw = request.data.get('is_migrant_worker')
+        if is_migrant_raw is not None:
+            labor.is_migrant_worker = str(is_migrant_raw).lower() in ('true', '1')
+            labor.save(update_fields=['is_migrant_worker'])
+
+        skill_card = request.FILES.get('skill_card_photo')
+        if skill_card and hasattr(skill_card, 'read'):
+            labor.skill_card_photo = skill_card
+            labor.save(update_fields=['skill_card_photo'])
+
+        labor.refresh_from_db()
+        return Response({
+            "message": "Labor details updated.",
+            "labor_details": LaborDetailsSerializer(labor).data
+        })
 
 
 class PartnerPublicView(generics.RetrieveAPIView):
@@ -530,13 +732,28 @@ class NearbyLaborsView(APIView):
                 # Language for display
                 lang = getattr(request.user, 'preferred_language', 'en') if request.user.is_authenticated else request.query_params.get('lang', 'en')
                 from labor_services.serializers import LaborServiceTypeSerializer
+                from labor_services.models import LaborServiceOffering as LSO, PRICE_UNIT_TRANSLATIONS
                 skills_list = LaborServiceTypeSerializer(labor.service_types.all(), many=True, context={'request': request}).data if labor else []
+
+                # Build per-skill offerings
+                offerings_data = []
+                if labor:
+                    for offering in LSO.objects.filter(labor_details=labor).select_related('service_type', 'service_type__category'):
+                        translations = PRICE_UNIT_TRANSLATIONS.get(offering.price_unit, {})
+                        offerings_data.append({
+                            'service_type': LaborServiceTypeSerializer(offering.service_type, context={'request': request}).data,
+                            'price': str(offering.price),
+                            'price_unit': offering.price_unit,
+                            'price_unit_display': translations.get(lang, translations.get('en', offering.get_price_unit_display())),
+                            'note': offering.note,
+                        })
 
                 results.append({
                     "id": partner.id,
                     "full_name": full_name or partner.user.phone_number,
                     "profile_picture": profile_pic_url,
                     "skills": skills_list,
+                    "offerings": offerings_data,
                     "daily_wage_estimate": str(labor.daily_wage_estimate) if labor and labor.daily_wage_estimate else None,
                     "is_migrant_worker": labor.is_migrant_worker if labor else False,
                     "skill_card_photo": request.build_absolute_uri(labor.skill_card_photo.url) if labor and labor.skill_card_photo else None,

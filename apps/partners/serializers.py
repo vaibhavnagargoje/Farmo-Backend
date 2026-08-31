@@ -10,17 +10,18 @@ User = get_user_model()
 # --- Nested Detail Serializers ---
 class LaborDetailsSerializer(serializers.ModelSerializer):
     # We import inline to avoid circular import issues if labor_services isn't loaded
-    from labor_services.serializers import LaborServiceTypeSerializer
+    from labor_services.serializers import LaborServiceTypeSerializer, LaborServiceOfferingSerializer
     from labor_services.models import LaborServiceType
 
     skills = LaborServiceTypeSerializer(source='service_types', many=True, read_only=True)
     skill_ids = serializers.PrimaryKeyRelatedField(
         many=True, queryset=LaborServiceType.objects.filter(is_active=True), source='service_types', write_only=True, required=False
     )
+    offerings = LaborServiceOfferingSerializer(many=True, read_only=True)
 
     class Meta:
         model = LaborDetails
-        fields = ['skill_card_photo', 'daily_wage_estimate', 'is_migrant_worker', 'skills', 'skill_ids']
+        fields = ['skill_card_photo', 'daily_wage_estimate', 'is_migrant_worker', 'skills', 'skill_ids', 'offerings']
 
 class MachineryDetailsSerializer(serializers.ModelSerializer):
     class Meta:

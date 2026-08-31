@@ -5,8 +5,13 @@ from rest_framework.response import Response
 from django.db.models import Prefetch, Count
 import math
 
-from .models import LaborCategory, LaborServiceType
-from .serializers import LaborCategorySerializer, LaborServiceTypeSerializer
+from .models import LaborCategory, LaborServiceType, LaborServiceOffering, LaborPriceUnit
+from .serializers import (
+    LaborCategorySerializer,
+    LaborServiceTypeSerializer,
+    LaborServiceOfferingSerializer,
+    PriceUnitSerializer,
+)
 from partners.models import PartnerProfile
 
 class LaborCategoryListView(generics.ListAPIView):
@@ -32,6 +37,27 @@ class LaborServiceTypeListView(generics.ListAPIView):
     permission_classes = [AllowAny]
     serializer_class = LaborServiceTypeSerializer
     queryset = LaborServiceType.objects.filter(is_active=True).order_by('order', 'name')
+
+
+class LaborPriceUnitsView(APIView):
+    """
+    GET /api/v1/labor/price-units/
+    Returns available price unit choices with multi-language labels.
+    
+    Response example:
+    [
+      { "id": 1, "label": "Per Day", "label_translations": { "en": "Per Day", "mr": "प्रति दिवस", "hi": "प्रति दिन" } },
+      ...
+    ]
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        units = LaborPriceUnit.objects.filter(is_active=True).order_by('order', 'name')
+        # We can just serialize the queryset since PriceUnitSerializer is now a ModelSerializer
+        serializer = PriceUnitSerializer(units, many=True)
+        return Response(serializer.data)
+
 
 class NearbyLaborsByTypeView(APIView):
     """
@@ -107,9 +133,27 @@ class NearbyLaborsByTypeView(APIView):
                 pass
 
             lang = getattr(request.user, 'preferred_language', 'en') if request.user.is_authenticated else request.query_params.get('lang', 'en')
+
+            # Build per-skill offerings list (replaces flat skills_list)
+            offerings_data = []
             skills_list = []
             if labor:
-                # Use the new service_types mapping
+                # Fetch offerings (through model) with per-skill pricing
+                offerings_qs = LaborServiceOffering.objects.filter(
+                    labor_details=labor
+                ).select_related('service_type', 'service_type__category', 'price_unit')
+
+                for offering in offerings_qs:
+                    st = offering.service_type
+                    offerings_data.append({
+                        'service_type': LaborServiceTypeSerializer(st, context={'request': request}).data,
+                        'price': str(offering.price),
+                        'price_unit': offering.price_unit.id,
+                        'price_unit_display': offering.price_unit.get_name(lang),
+                        'note': offering.note,
+                    })
+
+                # Also keep backward-compatible flat skills list
                 skills_list = LaborServiceTypeSerializer(labor.service_types.all(), many=True, context={'request': request}).data
 
             results.append({
@@ -117,6 +161,7 @@ class NearbyLaborsByTypeView(APIView):
                 "full_name": full_name,
                 "profile_picture": profile_pic_url,
                 "skills": skills_list,
+                "offerings": offerings_data,
                 "daily_wage_estimate": str(labor.daily_wage_estimate) if labor and labor.daily_wage_estimate else None,
                 "is_migrant_worker": labor.is_migrant_worker if labor else False,
                 "skill_card_photo": request.build_absolute_uri(labor.skill_card_photo.url) if labor and labor.skill_card_photo else None,
