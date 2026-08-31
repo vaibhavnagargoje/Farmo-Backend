@@ -109,12 +109,12 @@ class LaborDetails(models.Model):
     is_migrant_worker = models.BooleanField(default=False)
     
     # Service types linked via through model for per-skill pricing
-    service_types = models.ManyToManyField(
-        LaborServiceType,
-        through='LaborServiceOffering',
-        related_name='labor_profiles',
-        blank=True,
-    )
+    # service_types = models.ManyToManyField(
+    #     LaborServiceType,
+    #     through='LaborServiceOffering',
+    #     related_name='labor_profiles',
+    #     blank=True,
+    # )
     
     def __str__(self):
         return f"Labor Details: {self.partner.user.phone_number}"
