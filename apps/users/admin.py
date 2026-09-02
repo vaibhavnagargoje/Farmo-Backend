@@ -27,5 +27,12 @@ class UserAdmin(BaseUserAdmin):
     )
 
 admin.site.register(User, UserAdmin)
-admin.site.register(CustomerProfile)
 
+
+class CustomerProfileAdmin(admin.ModelAdmin):
+    list_display = ['user', 'full_name', 'gender', 'age', 'date_of_birth']
+    list_filter = ('gender',)
+    search_fields = ['full_name', 'user__phone_number', 'user__email']
+    raw_id_fields = ('user',)
+
+admin.site.register(CustomerProfile, CustomerProfileAdmin)

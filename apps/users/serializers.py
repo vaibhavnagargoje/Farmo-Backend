@@ -11,10 +11,12 @@ class UserSerializer(serializers.ModelSerializer):
     """
     full_name = serializers.SerializerMethodField()
     profile_picture = serializers.SerializerMethodField()
+    gender = serializers.SerializerMethodField()
+    age = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'phone_number', 'email', 'role', 'full_name', 'profile_picture', 'is_active', 'preferred_language']
+        fields = ['id', 'phone_number', 'email', 'role', 'full_name', 'profile_picture', 'gender', 'age', 'is_active', 'preferred_language']
         read_only_fields = ['id', 'role', 'is_active']
 
     def get_full_name(self, obj):
@@ -22,6 +24,18 @@ class UserSerializer(serializers.ModelSerializer):
         if profile and profile.full_name:
             return profile.full_name
         return ""
+
+    def get_gender(self, obj):
+        profile = getattr(obj, 'customer_profile', None)
+        if profile:
+            return profile.gender
+        return None
+
+    def get_age(self, obj):
+        profile = getattr(obj, 'customer_profile', None)
+        if profile:
+            return profile.age
+        return None
 
     def get_profile_picture(self, obj):
         profile = getattr(obj, 'customer_profile', None)
@@ -69,6 +83,11 @@ class ProfileUpdateSerializer(serializers.Serializer):
     """
     full_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
     profile_picture = serializers.ImageField(required=False, allow_null=True)
+    gender = serializers.ChoiceField(
+        choices=[('M', 'Male'), ('F', 'Female'), ('O', 'Other')],
+        required=False, allow_null=True, allow_blank=True,
+    )
+    age = serializers.IntegerField(required=False, allow_null=True, min_value=5, max_value=100)
 
     def validate_profile_picture(self, value):
         # Keep upload limits aligned with onboarding document image constraints.
@@ -93,3 +112,8 @@ class CustomerProfileSerializer(serializers.Serializer):
     Serializer for customer profile data (without location — that's in UserLocation).
     """
     full_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    gender = serializers.ChoiceField(
+        choices=[('M', 'Male'), ('F', 'Female'), ('O', 'Other')],
+        required=False, allow_null=True, allow_blank=True,
+    )
+    age = serializers.IntegerField(required=False, allow_null=True, min_value=5, max_value=100)

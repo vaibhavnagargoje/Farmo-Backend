@@ -96,6 +96,14 @@ class CustomerProfile(models.Model):
         null=True, blank=True,
         help_text="Gender of the user"
     )
+    age = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Age of the user"
+    )
+    date_of_birth = models.DateField(
+        null=True, blank=True,
+        help_text="Date of birth (future scope)"
+    )
 
     def __str__(self):
         return f"Customer: {self.full_name}"

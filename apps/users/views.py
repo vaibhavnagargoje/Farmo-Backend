@@ -264,6 +264,8 @@ class ProfileUpdateView(APIView):
         if profile:
             profile_data = {
                 "full_name": profile.full_name,
+                "gender": profile.gender,
+                "age": profile.age,
             }
             # Include location from UserLocation model
             if loc:
@@ -286,13 +288,17 @@ class ProfileUpdateView(APIView):
         user = request.user
         data = serializer.validated_data
 
-        # Update CustomerProfile (only full_name now)
+        # Update CustomerProfile
         profile = user.customer_profile if hasattr(user, "customer_profile") else None
         if profile:
             if "full_name" in data:
                 profile.full_name = data.get("full_name", profile.full_name)
             if "profile_picture" in data:
                 profile.profile_picture = data.get("profile_picture")
+            if "gender" in data:
+                profile.gender = data.get("gender")
+            if "age" in data:
+                profile.age = data.get("age")
             profile.save()
 
         # Build response with location from UserLocation
@@ -301,6 +307,8 @@ class ProfileUpdateView(APIView):
         if profile:
             profile_data = {
                 "full_name": profile.full_name,
+                "gender": profile.gender,
+                "age": profile.age,
                 "user_address": loc.address if loc else None,
                 "latitude": str(loc.latitude) if loc and loc.latitude else None,
                 "longitude": str(loc.longitude) if loc and loc.longitude else None,
