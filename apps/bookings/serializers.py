@@ -168,7 +168,9 @@ class BookingCreateSerializer(serializers.ModelSerializer):
             ).exists()
             if is_busy:
                 raise serializers.ValidationError({
-                    "scheduled_date": "This provider is not available on the selected date."
+                    "provider_busy": True,
+                    "scheduled_date": "This provider is not available on the selected date.",
+                    "message": "This provider is not available on the selected date."
                 })
 
         # Block duplicate: same customer + same provider while an order is still active
