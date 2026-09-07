@@ -15,3 +15,9 @@ migrations/
 # Django migrations
 **/migrations/
 farmo-3343e-firebase-adminsdk-fbsvc-f1ae9dbb49.json
+
+# SSH & Security Keys
+keys/
+*.key
+*.pub
+*.pem
