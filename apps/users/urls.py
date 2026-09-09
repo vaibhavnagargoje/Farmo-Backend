@@ -1,5 +1,8 @@
 from django.urls import path
-from .views import SendOTPView, VerifyOTPView, GoogleAuthView, ProfileUpdateView, LanguagePreferenceView, DeleteAccountView
+from .views import (
+    SendOTPView, VerifyOTPView, GoogleAuthView, ProfileUpdateView,
+    LanguagePreferenceView, DeleteAccountView, WhatsAppWebhookView
+)
 
 app_name = 'users' 
 
@@ -9,6 +12,8 @@ urlpatterns = [
     path('auth/verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
     path('auth/google/', GoogleAuthView.as_view(), name='google-auth'),
     path('auth/delete-account/', DeleteAccountView.as_view(), name='delete-account'),
+    # WhatsApp Webhook (Meta handshake & inbound bot messages)
+    path('whatsapp/webhook/', WhatsAppWebhookView.as_view(), name='whatsapp-webhook'),
     # Profile update (new user onboarding)
     path('profile/', ProfileUpdateView.as_view(), name='profile-update'),
     # Language preference

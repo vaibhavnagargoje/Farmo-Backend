@@ -53,19 +53,19 @@ class UserSerializer(serializers.ModelSerializer):
 
 class SendOTPSerializer(serializers.Serializer):
     """
-    Validates phone number and email for sending OTP to email.
+    Validates phone number and optional email for sending OTP via WhatsApp/Email.
     """
     phone_number = serializers.CharField(max_length=15, required=True)
-    email = serializers.EmailField(required=True)
+    email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
 
 
 class VerifyOTPSerializer(serializers.Serializer):
     """
-    Validates the phone number, email, and OTP for login.
+    Validates the phone number, optional email, and OTP for login.
     """
     phone_number = serializers.CharField(max_length=15, required=True)
-    email = serializers.EmailField(required=True)
-    otp = serializers.CharField(max_length=6, min_length=4, required=True)
+    email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
+    otp = serializers.CharField(max_length=4, min_length=4, required=True)
 
 
 class GoogleAuthSerializer(serializers.Serializer):

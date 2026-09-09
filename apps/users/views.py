@@ -12,15 +12,17 @@ from .serializers import (
 from django.core.cache import cache
 from django.core.mail import send_mail
 from django.conf import settings
+from django.http import HttpResponse
 import random
+from .whatsapp_service import send_whatsapp_otp, clean_phone_number
 
 User = get_user_model()
 
 
 class SendOTPView(APIView):
     """
-    Send OTP to user's email address.
-    Body: { "phone_number": "1234567890", "email": "user@example.com" }
+    Send OTP via WhatsApp to user's phone number (with optional email copy).
+    Body: { "phone_number": "1234567890", "email": "user@example.com" (optional) }
     """
     permission_classes = []
 
@@ -28,10 +30,13 @@ class SendOTPView(APIView):
         serializer = SendOTPSerializer(data=request.data)
         if serializer.is_valid():
             phone = serializer.validated_data['phone_number']
-            email = serializer.validated_data['email']
+            email = serializer.validated_data.get('email')
             
             # Check if user exists and is deactivated
-            user = User.objects.filter(phone_number=phone).first() or User.objects.filter(email=email).first()
+            user_filter = User.objects.filter(phone_number=phone)
+            if email:
+                user_filter = user_filter | User.objects.filter(email=email)
+            user = user_filter.first()
             if user and not user.is_active:
                 return Response(
                     {"error": "Your account has been deleted. Please contact support or email us to reactivate."},
@@ -39,18 +44,27 @@ class SendOTPView(APIView):
                 )
             
             # 1. Generate OTP
-            if email.lower() == 'test@farmo.in':
+            if email and email.lower() == 'test@farmo.in':
                 otp = '1234'
             else:
+                # 4-digit OTP for WhatsApp template (supports 4-8 digits)
                 otp = str(random.randint(1000, 9999))
             
-            # 2. Store OTP in cache keyed by email (5 min expiry)
-            cache.set(f'otp_{email}', otp, timeout=300)
-            # Also store the phone number associated with this email OTP
-            cache.set(f'otp_phone_{email}', phone, timeout=300)
+            # 2. Store OTP in cache keyed by phone number (5 min expiry)
+            clean_phone = clean_phone_number(phone)
+            cache.set(f'otp_{clean_phone}', otp, timeout=300)
+            cache.set(f'otp_{phone}', otp, timeout=300)
             
-            # 3. Send OTP via email
-            if email.lower() != 'test@farmo.in':
+            # Also store under email if provided (for backward compatibility)
+            if email:
+                cache.set(f'otp_{email}', otp, timeout=300)
+                cache.set(f'otp_phone_{email}', phone, timeout=300)
+            
+            # 3. Send OTP via WhatsApp Cloud API
+            wa_result = send_whatsapp_otp(phone_number=phone, otp=otp)
+            
+            # 4. Optional: Send via email if email provided
+            if email and email.lower() != 'test@farmo.in':
                 try:
                     html_message = f"""
                     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 500px; margin: 0 auto; padding: 30px; border: 1px solid #eaeaea; border-radius: 12px; background-color: #ffffff;">
@@ -77,7 +91,7 @@ class SendOTPView(APIView):
     
                     send_mail(
                         subject='Your Farmo Login Verification Code',
-                        message=f'Your OTP for Farmo login is: {otp}\\n\\nThis OTP is valid for 5 minutes. Do not share this code with anyone.',
+                        message=f'Your OTP for Farmo login is: {otp}\n\nThis OTP is valid for 5 minutes. Do not share this code with anyone.',
                         from_email=settings.DEFAULT_FROM_EMAIL,
                         recipient_list=[email],
                         fail_silently=False,
@@ -85,12 +99,12 @@ class SendOTPView(APIView):
                     )
                 except Exception as e:
                     print(f"--> Email send failed: {e}")
-                    # In development, OTP is still printed to console
             
-            print(f"--> SENT OTP {otp} to {email} (phone: {phone})")
+            print(f"--> SENT OTP {otp} to WhatsApp phone: {phone} (status: {wa_result.get('success')})")
             
             return Response({
-                "message": "OTP sent to your email."
+                "message": "OTP sent to your WhatsApp successfully.",
+                "whatsapp_delivered": wa_result.get("success", False),
             }, status=status.HTTP_200_OK)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -98,8 +112,8 @@ class SendOTPView(APIView):
 
 class VerifyOTPView(APIView):
     """
-    Verify email OTP and return JWT Token.
-    Body: { "phone_number": "1234567890", "email": "user@example.com", "otp": "1234" }
+    Verify OTP (via phone number or email) and return JWT Token.
+    Body: { "phone_number": "1234567890", "otp": "123456", "email": "user@example.com" (optional) }
     """
     permission_classes = []
 
@@ -107,11 +121,14 @@ class VerifyOTPView(APIView):
         serializer = VerifyOTPSerializer(data=request.data)
         if serializer.is_valid():
             phone = serializer.validated_data['phone_number']
-            email = serializer.validated_data['email']
+            email = serializer.validated_data.get('email')
             incoming_otp = serializer.validated_data['otp']
             
-            # 1. Check OTP (keyed by email)
-            stored_otp = cache.get(f'otp_{email}')
+            # 1. Check OTP (check clean phone, raw phone, then email)
+            clean_phone = clean_phone_number(phone)
+            stored_otp = cache.get(f'otp_{clean_phone}') or cache.get(f'otp_{phone}')
+            if not stored_otp and email:
+                stored_otp = cache.get(f'otp_{email}')
             
             if stored_otp and stored_otp == incoming_otp:
                 # OTP Matches!
@@ -125,8 +142,8 @@ class VerifyOTPView(APIView):
                         status=status.HTTP_403_FORBIDDEN
                     )
                 
-                # Check if email is already used by another user
-                if not user.email or user.email != email:
+                # Update email if provided and valid
+                if email and (not user.email or user.email != email):
                     existing = User.objects.filter(email=email).exclude(pk=user.pk).first()
                     if existing:
                         return Response(
@@ -141,8 +158,11 @@ class VerifyOTPView(APIView):
                 user.save()
 
                 # 3. Clear the used OTP
-                cache.delete(f'otp_{email}')
-                cache.delete(f'otp_phone_{email}')
+                cache.delete(f'otp_{clean_phone}')
+                cache.delete(f'otp_{phone}')
+                if email:
+                    cache.delete(f'otp_{email}')
+                    cache.delete(f'otp_phone_{email}')
 
                 # 4. Generate JWT Tokens
                 refresh = RefreshToken.for_user(user)
@@ -158,6 +178,48 @@ class VerifyOTPView(APIView):
             return Response({"error": "Invalid or expired OTP"}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class WhatsAppWebhookView(APIView):
+    """
+    Meta WhatsApp Cloud API Webhook Handler.
+    - GET: Meta webhook verification handshake (hub.challenge).
+    - POST: Incoming messages for auto chatbot & booking handling.
+    """
+    permission_classes = []
+
+    def get(self, request):
+        mode = request.GET.get("hub.mode")
+        token = request.GET.get("hub.verify_token")
+        challenge = request.GET.get("hub.challenge")
+
+        expected_token = getattr(settings, "WHATSAPP_WEBHOOK_VERIFY_TOKEN", "farmo_secret_webhook_verify_token_2026")
+
+        if mode == "subscribe" and token == expected_token:
+            return HttpResponse(challenge, content_type="text/plain", status=200)
+        return HttpResponse("Verification token mismatch", status=403)
+
+    def post(self, request):
+        data = request.data
+        try:
+            entries = data.get("entry", [])
+            for entry in entries:
+                changes = entry.get("changes", [])
+                for change in changes:
+                    value = change.get("value", {})
+                    # Process incoming messages for chatbot/bookings
+                    if "messages" in value:
+                        for msg in value["messages"]:
+                            sender_phone = msg.get("from")
+                            msg_type = msg.get("type")
+                            msg_body = msg.get("text", {}).get("body", "")
+                            print(f"--> [WhatsApp Inbound] From: {sender_phone}, Type: {msg_type}, Body: {msg_body}")
+                            # TODO: Connect your auto-chatbot or booking logic here!
+        except Exception as e:
+            print(f"--> [WhatsApp Webhook Error]: {e}")
+
+        # Meta requires 200 OK
+        return Response({"status": "EVENT_RECEIVED"}, status=status.HTTP_200_OK)
 
 
 class GoogleAuthView(APIView):
