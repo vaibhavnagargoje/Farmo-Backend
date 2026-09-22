@@ -165,9 +165,9 @@ class Booking(models.Model):
         # For instant bookings, set defaults
         if self.booking_type == self.BookingType.INSTANT:
             if not self.scheduled_date:
-                self.scheduled_date = timezone.now().date()
+                self.scheduled_date = timezone.localdate()
             if not self.scheduled_time:
-                self.scheduled_time = timezone.now().time()
+                self.scheduled_time = timezone.localtime(timezone.now()).time().replace(second=0, microsecond=0)
             if not self.expires_at and self.status == self.Status.SEARCHING:
                 timeout = 10  # default
                 if self.category and hasattr(self.category, 'instant_timeout_minutes'):

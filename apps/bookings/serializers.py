@@ -303,6 +303,14 @@ class InstantBookingCreateSerializer(serializers.Serializer):
     address = serializers.CharField()
     lat = serializers.FloatField()
     lng = serializers.FloatField()
+    scheduled_date = serializers.DateField(required=False, allow_null=True)
+    scheduled_time = serializers.TimeField(required=False, allow_null=True)
+
+    def validate_scheduled_date(self, value):
+        from django.utils import timezone
+        if value and value < timezone.localdate():
+            raise serializers.ValidationError("Scheduled date cannot be in the past.")
+        return value
 
     def validate_lat(self, value):
         """Coerce lat to 6 decimal places so it fits the model's DecimalField(max_digits=9)."""
@@ -412,6 +420,10 @@ class InstantBookingCreateSerializer(serializers.Serializer):
             category, user_lat, user_lng, radius_km
         )
 
+        from django.utils import timezone
+        scheduled_date = validated_data.get('scheduled_date') or timezone.localdate()
+        scheduled_time = validated_data.get('scheduled_time') or timezone.localtime(timezone.now()).time().replace(second=0, microsecond=0)
+
         # Create the booking
         booking = Booking.objects.create(
             booking_type=Booking.BookingType.INSTANT,
@@ -426,6 +438,8 @@ class InstantBookingCreateSerializer(serializers.Serializer):
             unit_price=unit_price,
             total_amount=round(unit_price * quantity, 2),
             note=validated_data.get('note', ''),
+            scheduled_date=scheduled_date,
+            scheduled_time=scheduled_time,
         )
 
         # Find distinct providers from nearby services and create broadcast requests
