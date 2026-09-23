@@ -105,14 +105,9 @@ class Booking(models.Model):
     # Financials (Snapshot Pattern)
     quantity = models.PositiveIntegerField(default=1, help_text="Number of Hours/Acres/Km")
     price_unit = models.CharField(
-        max_length=10,
-        choices=[
-            ('HOUR', 'Hour'), ('DAY', 'Day'),
-            ('KM', 'Kilometer'), ('ACRE', 'Acre'),
-            ('FIXED', 'Fixed Price'),
-        ],
+        max_length=20,
         default='HOUR',
-        help_text="Unit type for pricing (Hour/Day/Km/Acre/Fixed)"
+        help_text="Unit type for pricing — snapshot of the ServicePriceUnit.key at booking time"
     )
     unit_price = models.DecimalField(max_digits=10, decimal_places=2) 
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)

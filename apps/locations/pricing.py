@@ -54,7 +54,7 @@ def resolve_instant_price(category, user_lat, user_lng):
         # No zones configured at all → global fallback
         return (
             round(float(category.instant_price), 2),
-            category.instant_price_unit,
+            category.instant_price_unit.key if category.instant_price_unit else 'HOUR',
             None,
         )
 
@@ -82,20 +82,20 @@ def resolve_instant_price(category, user_lat, user_lng):
     if best_zone:
         return (
             round(float(best_zone.price), 2),
-            best_zone.price_unit,
+            best_zone.price_unit.key,
             best_zone.name,
         )
 
     if default_zone:
         return (
             round(float(default_zone.price), 2),
-            default_zone.price_unit,
+            default_zone.price_unit.key,
             default_zone.name,
         )
 
     # ── Step 6: global fallback ──
     return (
         round(float(category.instant_price), 2),
-        category.instant_price_unit,
+        category.instant_price_unit.key if category.instant_price_unit else 'HOUR',
         None,
     )

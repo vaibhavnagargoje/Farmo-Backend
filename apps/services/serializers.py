@@ -1,7 +1,14 @@
 # apps/services/serializers.py
 from rest_framework import serializers
-from .models import Category, Service, ServiceImage
+from .models import Category, Service, ServiceImage, ServicePriceUnit
 from partners.serializers import PartnerProfileSerializer
+
+
+def get_request_param(request, key, default=None):
+    if not request:
+        return default
+    params = getattr(request, 'query_params', getattr(request, 'GET', {}))
+    return params.get(key, default)
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -20,10 +27,7 @@ class CategorySerializer(serializers.ModelSerializer):
 
     def _get_lang(self):
         """Get language from ?lang= query param, default 'en'."""
-        request = self.context.get('request')
-        if request:
-            return request.query_params.get('lang', 'en')
-        return 'en'
+        return get_request_param(self.context.get('request'), 'lang', 'en')
 
     def get_name(self, obj):
         """Return translated name if available for requested language."""
@@ -41,8 +45,8 @@ class CategorySerializer(serializers.ModelSerializer):
             request = self.context.get('request')
             result = None
             if request:
-                lat = request.query_params.get('lat')
-                lng = request.query_params.get('lng')
+                lat = get_request_param(request, 'lat')
+                lng = get_request_param(request, 'lng')
                 if lat and lng:
                     try:
                         from locations.pricing import resolve_instant_price
@@ -63,7 +67,7 @@ class CategorySerializer(serializers.ModelSerializer):
         resolved = self._resolve_zone_price(obj)
         if resolved:
             return resolved[1]
-        return obj.instant_price_unit
+        return obj.instant_price_unit.key if obj.instant_price_unit else 'HOUR'
 
 
 class ServiceImageSerializer(serializers.ModelSerializer):
@@ -90,11 +94,14 @@ class ServiceListSerializer(serializers.ModelSerializer):
     images = ServiceImageSerializer(many=True, read_only=True)
     # Distance in km from user's location — populated by Haversine annotation in ServiceListView
     distance_km = serializers.SerializerMethodField()
+    price_unit = serializers.SerializerMethodField()
+    price_unit_id = serializers.IntegerField(source='price_unit.id', read_only=True)
+    price_unit_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Service
         fields = [
-            'id', 'title', 'description', 'price', 'price_unit', 'category', 'category_name',
+            'id', 'title', 'description', 'price', 'price_unit', 'price_unit_id', 'price_unit_display', 'category', 'category_name',
             'partner_name', 'partner_id', 'partner_rating', 'partner_profile_picture', 'status', 'is_available', 'thumbnail',
             'partner_location', 'service_radius_km', 'images', 'distance_km'
         ]
@@ -108,8 +115,7 @@ class ServiceListSerializer(serializers.ModelSerializer):
         return None
 
     def get_category_name(self, obj):
-        request = self.context.get('request')
-        lang = request.query_params.get('lang', 'en') if request else 'en'
+        lang = get_request_param(self.context.get('request'), 'lang', 'en')
         if lang != 'en' and obj.category and obj.category.name_translations:
             translated = obj.category.name_translations.get(lang)
             if translated:
@@ -138,6 +144,16 @@ class ServiceListSerializer(serializers.ModelSerializer):
             }
         return None
 
+    def get_price_unit(self, obj):
+        """Return price unit key string for backward compatibility."""
+        return obj.price_unit.key if obj.price_unit else 'HOUR'
+
+    def get_price_unit_display(self, obj):
+        if not obj.price_unit:
+            return 'Hour'
+        lang = get_request_param(self.context.get('request'), 'lang', 'en')
+        return obj.price_unit.get_name(lang)
+
     def get_distance_km(self, obj):
         """Return distance annotated by ServiceListView's Haversine query, rounded to 1 decimal."""
         dist = getattr(obj, 'distance', None)
@@ -154,15 +170,28 @@ class ServiceDetailSerializer(serializers.ModelSerializer):
     partner = PartnerProfileSerializer(read_only=True)
     images = ServiceImageSerializer(many=True, read_only=True)
     partner_location = serializers.SerializerMethodField()
+    price_unit = serializers.SerializerMethodField()
+    price_unit_id = serializers.IntegerField(source='price_unit.id', read_only=True)
+    price_unit_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Service
         fields = [
-            'id', 'title', 'description', 'price', 'price_unit', 'min_order_qty',
+            'id', 'title', 'description', 'price', 'price_unit', 'price_unit_id', 'price_unit_display', 'min_order_qty',
             'category', 'partner', 'status', 'is_available',
             'partner_location', 'service_radius_km',
             'specifications', 'images', 'created_at', 'updated_at'
         ]
+
+    def get_price_unit(self, obj):
+        """Return price unit key string for backward compatibility."""
+        return obj.price_unit.key if obj.price_unit else 'HOUR'
+
+    def get_price_unit_display(self, obj):
+        if not obj.price_unit:
+            return 'Hour'
+        lang = get_request_param(self.context.get('request'), 'lang', 'en')
+        return obj.price_unit.get_name(lang)
 
     def get_partner_location(self, obj):
         loc = getattr(obj.partner.user, 'location', None)
@@ -175,10 +204,56 @@ class ServiceDetailSerializer(serializers.ModelSerializer):
         return None
 
 
+class ServicePriceUnitSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the ServicePriceUnit endpoint.
+    Returns id, key, value, label, and translations for each unit.
+    """
+    label = serializers.CharField(source='name')
+    label_translations = serializers.DictField(source='name_translations')
+    value = serializers.CharField(source='key', read_only=True)
+
+    class Meta:
+        model = ServicePriceUnit
+        fields = ['id', 'key', 'value', 'label', 'label_translations']
+
+
+class PriceUnitRelatedField(serializers.Field):
+    """
+    Accepts either an integer ID (FK pk) or a string key ('HOUR', 'ACRE')
+    on writes, and returns the key string on representation.
+    """
+    def to_internal_value(self, data):
+        if not data:
+            raise serializers.ValidationError("Price unit is required.")
+        if isinstance(data, ServicePriceUnit):
+            return data
+        # Try integer ID
+        try:
+            unit_id = int(data)
+            unit = ServicePriceUnit.objects.filter(id=unit_id, is_active=True).first()
+            if unit:
+                return unit
+        except (ValueError, TypeError):
+            pass
+        # Try key string
+        if isinstance(data, str):
+            unit = ServicePriceUnit.objects.filter(key=data.strip().upper(), is_active=True).first()
+            if unit:
+                return unit
+        raise serializers.ValidationError(f"Invalid price unit '{data}'.")
+
+    def to_representation(self, value):
+        if isinstance(value, ServicePriceUnit):
+            return value.key
+        return str(value)
+
+
 class ServiceCreateSerializer(serializers.ModelSerializer):
     """
     Serializer for Partners to create a new Service.
     """
+    price_unit = PriceUnitRelatedField()
     images = serializers.ListField(
         child=serializers.ImageField(),
         write_only=True,
@@ -217,6 +292,8 @@ class ServiceUpdateSerializer(serializers.ModelSerializer):
     """
     Serializer for Partners to update their Service.
     """
+    price_unit = PriceUnitRelatedField(required=False)
+
     class Meta:
         model = Service
         fields = [

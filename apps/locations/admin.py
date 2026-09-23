@@ -16,9 +16,10 @@ class PricingZoneAdmin(admin.ModelAdmin):
         'name', 'category', 'price', 'price_unit',
         'radius_km', 'is_default', 'is_active',
     )
-    list_filter = ('category', 'is_active', 'is_default', 'price_unit')
+    list_filter = ('category', 'is_active', 'is_default')
     search_fields = ('name', 'category__name')
     list_editable = ('price', 'is_active')
+    autocomplete_fields = ('price_unit',)
 
     fieldsets = (
         ('Zone Identity', {
@@ -34,4 +35,4 @@ class PricingZoneAdmin(admin.ModelAdmin):
         ('Pricing', {
             'fields': ('price', 'price_unit', 'is_default'),
         }),
-    )
+    )

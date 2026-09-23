@@ -3,6 +3,37 @@ from django.conf import settings
 # Import PartnerProfile to link specifically to the business entity
 from partners.models import PartnerProfile 
 
+
+class ServicePriceUnit(models.Model):
+    """
+    Dynamic pricing units for machinery/equipment services (e.g. Per Hour, Per Acre).
+    Replaces the old static PriceUnit TextChoices so admins can add/edit them.
+    Mirrors LaborPriceUnit from labor_services app.
+    """
+    key = models.CharField(
+        max_length=20, unique=True,
+        help_text="Internal key e.g. 'HOUR', 'ACRE' — used for backward compat"
+    )
+    name = models.CharField(max_length=50, help_text="e.g., Per Hour")
+    name_translations = models.JSONField(
+        default=dict, blank=True,
+        help_text='{"mr": "प्रति तास", "hi": "प्रति घंटा", "en": "Per Hour"}'
+    )
+    is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'name']
+        verbose_name = 'Service Price Unit'
+        verbose_name_plural = 'Service Price Units'
+
+    def __str__(self):
+        return self.name
+
+    def get_name(self, language_code='en'):
+        return self.name_translations.get(language_code, self.name)
+
+
 class Category(models.Model):
     """
     Examples: 
@@ -24,14 +55,12 @@ class Category(models.Model):
         max_digits=10, decimal_places=2, default=0,
         help_text="Base price for instant bookings in this category (set by admin)"
     )
-    instant_price_unit = models.CharField(
-        max_length=10,
-        choices=[
-            ('HOUR', 'Hour'), ('DAY', 'Day'),
-            ('KM', 'Kilometer'), ('ACRE', 'Acre'),
-            ('FIXED', 'Fixed Price'),
-        ],
-        default='HOUR',
+    instant_price_unit = models.ForeignKey(
+        ServicePriceUnit,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='categories',
         help_text="Price unit for instant bookings"
     )
     instant_enabled = models.BooleanField(
@@ -54,13 +83,6 @@ class Service(models.Model):
     """
     The main listing created by a Partner.
     """
-    class PriceUnit(models.TextChoices):
-        PER_HOUR = 'HOUR', 'Hour'
-        PER_DAY = 'DAY', 'Day'
-        PER_KM = 'KM', 'Kilometer'
-        PER_ACRE = 'ACRE', 'Acre'
-        FIXED = 'FIXED', 'Fixed Price'
-
     class Status(models.TextChoices):
         DRAFT = 'DRAFT', 'Draft'            # Partner is still writing it
         PENDING = 'PENDING', 'Pending Approval' # Waiting for Admin
@@ -82,7 +104,12 @@ class Service(models.Model):
     
     # Pricing
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    price_unit = models.CharField(max_length=10, choices=PriceUnit.choices, default=PriceUnit.PER_HOUR)
+    price_unit = models.ForeignKey(
+        ServicePriceUnit,
+        on_delete=models.PROTECT,
+        related_name='services',
+        help_text="The unit of pricing (e.g. Per Hour, Per Acre)"
+    )
     
     # --- 2. ADDED: Business Logic Constraints ---
     min_order_qty = models.DecimalField(

@@ -1,5 +1,13 @@
 from django.contrib import admin
-from .models import Category, Service, ServiceImage
+from .models import Category, Service, ServiceImage, ServicePriceUnit
+
+
+@admin.register(ServicePriceUnit)
+class ServicePriceUnitAdmin(admin.ModelAdmin):
+    list_display = ('name', 'key', 'is_active', 'order')
+    list_editable = ('is_active', 'order')
+    search_fields = ('name', 'key')
+
 
 class ServiceImageInline(admin.TabularInline):
     """
@@ -15,6 +23,7 @@ class CategoryAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'instant_enabled')
     search_fields = ('name',)
     list_editable = ('instant_price', 'instant_enabled')
+    autocomplete_fields = ('instant_price_unit',)
 
     fieldsets = (
         ('Basic Info', {
@@ -40,9 +49,10 @@ class ServiceAdmin(admin.ModelAdmin):
         'status', 
         'is_available'
     )
-    list_filter = ('status', 'is_available', 'category', 'price_unit')
+    list_filter = ('status', 'is_available', 'category')
     search_fields = ('title', 'partner__user__phone_number')
     readonly_fields = ('created_at', 'updated_at')
+    autocomplete_fields = ('price_unit',)
     
     # This puts the image uploader inside the Service form
     inlines = [ServiceImageInline]
@@ -65,3 +75,4 @@ class ServiceAdmin(admin.ModelAdmin):
 @admin.register(ServiceImage)
 class ServiceImageAdmin(admin.ModelAdmin):
     list_display = ('service', 'is_thumbnail')
+

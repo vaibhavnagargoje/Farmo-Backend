@@ -265,17 +265,17 @@ class ServiceImageUploadView(APIView):
 
 class PriceUnitListView(APIView):
     """
-    GET: Return all available price unit choices from the Service model.
+    GET: Return all available price unit choices from the ServicePriceUnit model.
     This ensures frontend never hardcodes price units.
     """
     permission_classes = []  # Public
 
     def get(self, request):
-        units = [
-            {"value": value, "label": label}
-            for value, label in Service.PriceUnit.choices
-        ]
-        return Response(units)
+        from .models import ServicePriceUnit
+        from .serializers import ServicePriceUnitSerializer
+        units = ServicePriceUnit.objects.filter(is_active=True).order_by('order', 'name')
+        serializer = ServicePriceUnitSerializer(units, many=True)
+        return Response(serializer.data)
 
 
 class ServiceImageDeleteView(APIView):

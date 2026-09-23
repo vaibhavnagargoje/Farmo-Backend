@@ -1,14 +1,5 @@
 from django.db import models
-from services.models import Category
-
-
-PRICE_UNIT_CHOICES = [
-    ('HOUR', 'Hour'),
-    ('DAY', 'Day'),
-    ('KM', 'Kilometer'),
-    ('ACRE', 'Acre'),
-    ('FIXED', 'Fixed Price'),
-]
+from services.models import Category, ServicePriceUnit
 
 
 class PricingZone(models.Model):
@@ -56,9 +47,11 @@ class PricingZone(models.Model):
         max_digits=10, decimal_places=2,
         help_text="Price for instant bookings within this zone",
     )
-    price_unit = models.CharField(
-        max_length=10, choices=PRICE_UNIT_CHOICES, default='HOUR',
-        help_text="Unit for this zone's price (Hour/Day/Km/Acre/Fixed)",
+    price_unit = models.ForeignKey(
+        ServicePriceUnit,
+        on_delete=models.PROTECT,
+        related_name='pricing_zones',
+        help_text="Unit for this zone's price (e.g. Per Hour, Per Acre)",
     )
 
     # ── Flags ──
@@ -79,4 +72,5 @@ class PricingZone(models.Model):
 
     def __str__(self):
         tag = " [DEFAULT]" if self.is_default else ""
-        return f"{self.category.name} — {self.name}{tag} (₹{self.price}/{self.price_unit})"
+        return f"{self.category.name} — {self.name}{tag} (₹{self.price}/{self.price_unit.name})"
+

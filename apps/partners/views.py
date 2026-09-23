@@ -204,7 +204,7 @@ class PartnerOnboardOrAddServiceView(APIView):
                 return Response({"error": "price must be a positive number."}, status=status.HTTP_400_BAD_REQUEST)
 
             # Verify category exists
-            from services.models import Category, Service, ServiceImage
+            from services.models import Category, Service, ServiceImage, ServicePriceUnit
             try:
                 cat = Category.objects.get(id=category_id)
             except Category.DoesNotExist:
@@ -212,7 +212,18 @@ class PartnerOnboardOrAddServiceView(APIView):
 
             # Create the Service
             description = request.data.get('description', '').strip()
-            price_unit = request.data.get('price_unit', 'ACRE').strip().upper()
+            raw_unit = str(request.data.get('price_unit', 'ACRE')).strip()
+            unit_obj = None
+            try:
+                unit_id = int(raw_unit)
+                unit_obj = ServicePriceUnit.objects.filter(id=unit_id, is_active=True).first()
+            except (ValueError, TypeError):
+                pass
+            if not unit_obj and raw_unit:
+                unit_obj = ServicePriceUnit.objects.filter(key=raw_unit.upper(), is_active=True).first()
+            if not unit_obj:
+                unit_obj = ServicePriceUnit.objects.filter(is_active=True).first()
+
             service_radius = request.data.get('service_radius_km', 10)
             try:
                 service_radius = int(service_radius)
@@ -225,7 +236,7 @@ class PartnerOnboardOrAddServiceView(APIView):
                 title=title,
                 description=description,
                 price=price_val,
-                price_unit=price_unit,
+                price_unit=unit_obj,
                 service_radius_km=service_radius,
                 status=Service.Status.ACTIVE,
             )

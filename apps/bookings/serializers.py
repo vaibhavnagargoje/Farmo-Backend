@@ -108,11 +108,22 @@ class BookingCreateSerializer(serializers.ModelSerializer):
     Serializer for Customers to create a new Booking.
     """
     service_id = serializers.IntegerField(write_only=True)
-    price_unit = serializers.ChoiceField(
-        choices=Service.PriceUnit.choices,
+    price_unit = serializers.CharField(
         required=False,
         allow_null=True,
+        allow_blank=True,
+        help_text="ServicePriceUnit.key — validated against active units"
     )
+
+    def validate_price_unit(self, value):
+        if value:
+            from services.models import ServicePriceUnit
+            if not ServicePriceUnit.objects.filter(key=value, is_active=True).exists():
+                valid_keys = list(ServicePriceUnit.objects.filter(is_active=True).values_list('key', flat=True))
+                raise serializers.ValidationError(
+                    f"Invalid price unit '{value}'. Valid options: {valid_keys}"
+                )
+        return value
 
     class Meta:
         model = Booking
@@ -151,9 +162,10 @@ class BookingCreateSerializer(serializers.ModelSerializer):
             })
 
         # Scheduled bookings must keep the unit configured on the service.
-        if requested_unit and requested_unit != service.price_unit:
+        service_unit_key = service.price_unit.key if service.price_unit else 'HOUR'
+        if requested_unit and requested_unit != service_unit_key:
             raise serializers.ValidationError({
-                "price_unit": f"This service is priced in {service.price_unit}."
+                "price_unit": f"This service is priced in {service_unit_key}."
             })
 
         # ── Calendar Availability Check ──
@@ -198,7 +210,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
         requested_unit = validated_data.pop('price_unit', None)
         service_id = validated_data.pop('service_id')
         service = Service.objects.get(id=service_id)
-        resolved_unit = requested_unit or service.price_unit
+        resolved_unit = requested_unit or (service.price_unit.key if service.price_unit else 'HOUR')
         
         # Create booking with snapshot pricing
         booking = Booking.objects.create(
@@ -294,10 +306,11 @@ class InstantBookingCreateSerializer(serializers.Serializer):
     """
     category_id = serializers.IntegerField()
     quantity = serializers.IntegerField(min_value=1)
-    price_unit = serializers.ChoiceField(
-        choices=Service.PriceUnit.choices,
+    price_unit = serializers.CharField(
         required=False,
         allow_null=True,
+        allow_blank=True,
+        help_text="ServicePriceUnit.key — validated against active units"
     )
     note = serializers.CharField(required=False, allow_blank=True, default="")
     address = serializers.CharField()
@@ -305,6 +318,16 @@ class InstantBookingCreateSerializer(serializers.Serializer):
     lng = serializers.FloatField()
     scheduled_date = serializers.DateField(required=False, allow_null=True)
     scheduled_time = serializers.TimeField(required=False, allow_null=True)
+
+    def validate_price_unit(self, value):
+        if value:
+            from services.models import ServicePriceUnit
+            if not ServicePriceUnit.objects.filter(key=value, is_active=True).exists():
+                valid_keys = list(ServicePriceUnit.objects.filter(is_active=True).values_list('key', flat=True))
+                raise serializers.ValidationError(
+                    f"Invalid price unit '{value}'. Valid options: {valid_keys}"
+                )
+        return value
 
     def validate_scheduled_date(self, value):
         from django.utils import timezone
