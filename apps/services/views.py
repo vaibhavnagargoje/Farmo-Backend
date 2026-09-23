@@ -65,7 +65,7 @@ class ServiceListView(generics.ListAPIView):
             status=Service.Status.ACTIVE,
             is_available=True,
             partner__is_available=True,
-        )
+        ).select_related('category', 'price_unit', 'partner')
 
         # -- Category filter --
         category_slug = self.request.query_params.get('category')
@@ -138,7 +138,7 @@ class ServiceDetailView(generics.RetrieveAPIView):
     """
     GET: View details of a single service.
     """
-    queryset = Service.objects.filter(status=Service.Status.ACTIVE, partner__is_available=True)
+    queryset = Service.objects.filter(status=Service.Status.ACTIVE, partner__is_available=True).select_related('category', 'price_unit', 'partner')
     serializer_class = ServiceDetailSerializer
     permission_classes = []  # Public
     lookup_field = 'id'
@@ -274,7 +274,7 @@ class PriceUnitListView(APIView):
         from .models import ServicePriceUnit
         from .serializers import ServicePriceUnitSerializer
         units = ServicePriceUnit.objects.filter(is_active=True).order_by('order', 'name')
-        serializer = ServicePriceUnitSerializer(units, many=True)
+        serializer = ServicePriceUnitSerializer(units, many=True, context={'request': request})
         return Response(serializer.data)
 
 

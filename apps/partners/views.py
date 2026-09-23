@@ -441,7 +441,7 @@ class PartnerProfileView(APIView):
         data = serializer.data
         if partner.partner_type == PartnerProfile.PartnerType.LABOR:
             if hasattr(partner, 'labor_details'):
-                data['labor_details'] = LaborDetailsSerializer(partner.labor_details).data
+                data['labor_details'] = LaborDetailsSerializer(partner.labor_details, context={'request': request}).data
         elif partner.partner_type == PartnerProfile.PartnerType.MACHINERY_OWNER:
             if hasattr(partner, 'machinery_details'):
                 data['machinery_details'] = MachineryDetailsSerializer(partner.machinery_details).data
@@ -478,7 +478,7 @@ class LaborDetailsView(APIView):
         labor = getattr(partner, 'labor_details', None)
         if not labor:
             return Response({"labor_details": None})
-        return Response({"labor_details": LaborDetailsSerializer(labor).data})
+        return Response({"labor_details": LaborDetailsSerializer(labor, context={'request': request}).data})
 
     def patch(self, request):
         import json

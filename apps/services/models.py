@@ -79,6 +79,11 @@ class Category(models.Model):
     def __str__(self):
         return self.name
 
+    def get_name(self, language_code='en'):
+        if self.name_translations and language_code != 'en':
+            return self.name_translations.get(language_code, self.name)
+        return self.name
+
 class Service(models.Model):
     """
     The main listing created by a Partner.

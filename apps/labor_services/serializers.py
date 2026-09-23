@@ -2,16 +2,25 @@ from rest_framework import serializers
 from .models import LaborCategory, LaborServiceType, LaborServiceOffering, LaborPriceUnit
 
 
+def _get_lang_from_context(context, default='en'):
+    if not context:
+        return default
+    request = context.get('request')
+    if not request:
+        return default
+    params = getattr(request, 'query_params', getattr(request, 'GET', {}))
+    return params.get('lang', default)
+
+
 class LaborServiceTypeSerializer(serializers.ModelSerializer):
     display_name = serializers.SerializerMethodField()
 
     class Meta:
         model = LaborServiceType
-        fields = ['id', 'name', 'display_name', 'slug', 'icon', 'cover_image', 'default_price_unit']
+        fields = ['id', 'name', 'display_name', 'name_translations', 'slug', 'icon', 'cover_image', 'default_price_unit']
 
     def get_display_name(self, obj):
-        request = self.context.get('request')
-        lang = request.query_params.get('lang', 'en') if request else 'en'
+        lang = _get_lang_from_context(self.context)
         if lang != 'en' and obj.name_translations:
             translated = obj.name_translations.get(lang)
             if translated:
@@ -38,8 +47,7 @@ class LaborServiceOfferingSerializer(serializers.ModelSerializer):
 
     def get_price_unit_display(self, obj):
         """Return translated price unit label from the LaborPriceUnit model."""
-        request = self.context.get('request')
-        lang = request.query_params.get('lang', 'en') if request else 'en'
+        lang = _get_lang_from_context(self.context)
         return obj.price_unit.get_name(lang)
 
 
@@ -50,11 +58,10 @@ class LaborCategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = LaborCategory
-        fields = ['id', 'name', 'display_name', 'slug', 'icon', 'cover_image', 'service_types', 'worker_count']
+        fields = ['id', 'name', 'display_name', 'name_translations', 'slug', 'icon', 'cover_image', 'service_types', 'worker_count']
 
     def get_display_name(self, obj):
-        request = self.context.get('request')
-        lang = request.query_params.get('lang', 'en') if request else 'en'
+        lang = _get_lang_from_context(self.context)
         if lang != 'en' and obj.name_translations:
             translated = obj.name_translations.get(lang)
             if translated:
@@ -62,9 +69,6 @@ class LaborCategorySerializer(serializers.ModelSerializer):
         return obj.name
 
     def get_worker_count(self, obj):
-        # We can implement an annotation or a basic count here.
-        # For now, we will return 0 or calculate it.
-        # A more optimal way is to annotate the queryset in the view.
         return getattr(obj, 'worker_count_annotated', 0)
 
 
@@ -73,9 +77,17 @@ class PriceUnitSerializer(serializers.ModelSerializer):
     Serializer for the LaborPriceUnit endpoint.
     Returns id, label, and translations for each unit.
     """
-    label = serializers.CharField(source='name')
+    label = serializers.SerializerMethodField()
     label_translations = serializers.DictField(source='name_translations')
 
     class Meta:
         model = LaborPriceUnit
         fields = ['id', 'label', 'label_translations']
+
+    def get_label(self, obj):
+        lang = _get_lang_from_context(self.context)
+        if lang != 'en' and obj.name_translations:
+            translated = obj.name_translations.get(lang)
+            if translated:
+                return translated
+        return obj.name

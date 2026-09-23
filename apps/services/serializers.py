@@ -11,6 +11,32 @@ def get_request_param(request, key, default=None):
     return params.get(key, default)
 
 
+def get_request_lang(request, default='en'):
+    """
+    Extract user language preference from query param, Accept-Language header,
+    or user profile.
+    """
+    if not request:
+        return default
+    # 1. Query parameter ?lang=
+    params = getattr(request, 'query_params', getattr(request, 'GET', {}))
+    lang = params.get('lang')
+    if lang:
+        return str(lang).strip().lower()
+    # 2. Header Accept-Language
+    headers = getattr(request, 'headers', {})
+    accept_lang = headers.get('Accept-Language') or getattr(request, 'META', {}).get('HTTP_ACCEPT_LANGUAGE')
+    if accept_lang:
+        lang_code = accept_lang.split(',')[0].split('-')[0].strip().lower()
+        if lang_code in ['mr', 'hi', 'en']:
+            return lang_code
+    # 3. Authenticated user's preferred_language
+    user = getattr(request, 'user', None)
+    if user and user.is_authenticated and getattr(user, 'preferred_language', None):
+        return user.preferred_language
+    return default
+
+
 class CategorySerializer(serializers.ModelSerializer):
     """
     Serializer for Service Categories.
@@ -19,24 +45,20 @@ class CategorySerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
     instant_price = serializers.SerializerMethodField()
     instant_price_unit = serializers.SerializerMethodField()
+    instant_price_unit_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Category
-        fields = ['id', 'name', 'name_translations', 'slug', 'icon', 'is_active', 'instant_price', 'instant_price_unit', 'instant_enabled']
+        fields = ['id', 'name', 'name_translations', 'slug', 'icon', 'is_active', 'instant_price', 'instant_price_unit', 'instant_price_unit_display', 'instant_enabled']
         read_only_fields = ['id', 'slug']
 
     def _get_lang(self):
-        """Get language from ?lang= query param, default 'en'."""
-        return get_request_param(self.context.get('request'), 'lang', 'en')
+        return get_request_lang(self.context.get('request'))
 
     def get_name(self, obj):
-        """Return translated name if available for requested language."""
+        """Return translated name using Category.get_name(lang)."""
         lang = self._get_lang()
-        if lang != 'en' and obj.name_translations:
-            translated = obj.name_translations.get(lang)
-            if translated:
-                return translated
-        return obj.name
+        return obj.get_name(lang)
 
     def _resolve_zone_price(self, obj):
         """Resolve zone price once and cache on the serializer instance."""
@@ -69,6 +91,13 @@ class CategorySerializer(serializers.ModelSerializer):
             return resolved[1]
         return obj.instant_price_unit.key if obj.instant_price_unit else 'HOUR'
 
+    def get_instant_price_unit_display(self, obj):
+        resolved = self._resolve_zone_price(obj)
+        unit = obj.instant_price_unit
+        if unit:
+            return unit.get_name(self._get_lang())
+        return 'Hour'
+
 
 class ServiceImageSerializer(serializers.ModelSerializer):
     """
@@ -84,7 +113,9 @@ class ServiceListSerializer(serializers.ModelSerializer):
     """
     Lightweight serializer for listing services (e.g., search results).
     """
+    category = CategorySerializer(read_only=True)
     category_name = serializers.SerializerMethodField()
+    category_name_translations = serializers.JSONField(source='category.name_translations', read_only=True, default=dict)
     partner_name = serializers.CharField(source='partner.user.customer_profile.full_name', read_only=True, default='')
     partner_id = serializers.IntegerField(source='partner.id', read_only=True)
     partner_rating = serializers.DecimalField(source='partner.rating', max_digits=3, decimal_places=2, read_only=True)
@@ -101,7 +132,7 @@ class ServiceListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Service
         fields = [
-            'id', 'title', 'description', 'price', 'price_unit', 'price_unit_id', 'price_unit_display', 'category', 'category_name',
+            'id', 'title', 'description', 'price', 'price_unit', 'price_unit_id', 'price_unit_display', 'category', 'category_name', 'category_name_translations',
             'partner_name', 'partner_id', 'partner_rating', 'partner_profile_picture', 'status', 'is_available', 'thumbnail',
             'partner_location', 'service_radius_km', 'images', 'distance_km'
         ]
@@ -115,12 +146,10 @@ class ServiceListSerializer(serializers.ModelSerializer):
         return None
 
     def get_category_name(self, obj):
-        lang = get_request_param(self.context.get('request'), 'lang', 'en')
-        if lang != 'en' and obj.category and obj.category.name_translations:
-            translated = obj.category.name_translations.get(lang)
-            if translated:
-                return translated
-        return obj.category.name if obj.category else ''
+        lang = get_request_lang(self.context.get('request'))
+        if obj.category:
+            return obj.category.get_name(lang)
+        return ''
 
     def get_partner_profile_picture(self, obj):
         profile = getattr(obj.partner.user, 'customer_profile', None)
@@ -151,7 +180,7 @@ class ServiceListSerializer(serializers.ModelSerializer):
     def get_price_unit_display(self, obj):
         if not obj.price_unit:
             return 'Hour'
-        lang = get_request_param(self.context.get('request'), 'lang', 'en')
+        lang = get_request_lang(self.context.get('request'))
         return obj.price_unit.get_name(lang)
 
     def get_distance_km(self, obj):
@@ -167,6 +196,7 @@ class ServiceDetailSerializer(serializers.ModelSerializer):
     Full detail serializer for viewing a single service.
     """
     category = CategorySerializer(read_only=True)
+    category_name = serializers.SerializerMethodField()
     partner = PartnerProfileSerializer(read_only=True)
     images = ServiceImageSerializer(many=True, read_only=True)
     partner_location = serializers.SerializerMethodField()
@@ -178,10 +208,16 @@ class ServiceDetailSerializer(serializers.ModelSerializer):
         model = Service
         fields = [
             'id', 'title', 'description', 'price', 'price_unit', 'price_unit_id', 'price_unit_display', 'min_order_qty',
-            'category', 'partner', 'status', 'is_available',
+            'category', 'category_name', 'partner', 'status', 'is_available',
             'partner_location', 'service_radius_km',
             'specifications', 'images', 'created_at', 'updated_at'
         ]
+
+    def get_category_name(self, obj):
+        lang = get_request_lang(self.context.get('request'))
+        if obj.category:
+            return obj.category.get_name(lang)
+        return ''
 
     def get_price_unit(self, obj):
         """Return price unit key string for backward compatibility."""
@@ -190,7 +226,7 @@ class ServiceDetailSerializer(serializers.ModelSerializer):
     def get_price_unit_display(self, obj):
         if not obj.price_unit:
             return 'Hour'
-        lang = get_request_param(self.context.get('request'), 'lang', 'en')
+        lang = get_request_lang(self.context.get('request'))
         return obj.price_unit.get_name(lang)
 
     def get_partner_location(self, obj):
@@ -209,13 +245,17 @@ class ServicePriceUnitSerializer(serializers.ModelSerializer):
     Serializer for the ServicePriceUnit endpoint.
     Returns id, key, value, label, and translations for each unit.
     """
-    label = serializers.CharField(source='name')
+    label = serializers.SerializerMethodField()
     label_translations = serializers.DictField(source='name_translations')
     value = serializers.CharField(source='key', read_only=True)
 
     class Meta:
         model = ServicePriceUnit
         fields = ['id', 'key', 'value', 'label', 'label_translations']
+
+    def get_label(self, obj):
+        lang = get_request_lang(self.context.get('request'))
+        return obj.get_name(lang)
 
 
 class PriceUnitRelatedField(serializers.Field):

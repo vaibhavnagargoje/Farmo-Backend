@@ -55,7 +55,7 @@ class LaborPriceUnitsView(APIView):
     def get(self, request):
         units = LaborPriceUnit.objects.filter(is_active=True).order_by('order', 'name')
         # We can just serialize the queryset since PriceUnitSerializer is now a ModelSerializer
-        serializer = PriceUnitSerializer(units, many=True)
+        serializer = PriceUnitSerializer(units, many=True, context={'request': request})
         return Response(serializer.data)
 
 
