@@ -11,6 +11,10 @@ urlpatterns = [
     # ── Dashboard ──────────────────────────────────────────────────────────
     path('', views.dashboard, name='dashboard'),
 
+    # ── Map View ──────────────────────────────────────────────────────────
+    path('map/', views.map_view, name='map-view'),
+    path('map/assign/', views.map_assign_partner, name='map-assign-partner'),
+
     # ── New Admin Panel: Users ─────────────────────────────────────────────
     path('manage/users/', views.users_list, name='users-list'),
     path('manage/users/add/', views.add_user, name='add-user'),

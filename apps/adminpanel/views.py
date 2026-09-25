@@ -448,6 +448,226 @@ def dashboard(request):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Map View — Partner coverage circles + Booking pins on Google Maps
+# ─────────────────────────────────────────────────────────────────────────────
+
+@user_passes_test(is_agent, login_url="/api/v1/admin/login/")
+def map_view(request):
+    import json
+    from django.conf import settings as django_settings
+    from django.db.models import Max
+    from bookings.models import Booking
+
+    # ── Category filter ──
+    category_filter = request.GET.get("category", "")
+    status_filter = request.GET.get("status", "")  # booking status filter
+    categories = Category.objects.filter(is_active=True).order_by("name")
+
+    # ── Partners with location ──
+    partners_qs = PartnerProfile.objects.filter(
+        user__location__isnull=False,
+    ).select_related("user", "user__location", "user__customer_profile")
+
+    if category_filter:
+        partners_qs = partners_qs.filter(
+            services__category_id=category_filter,
+            services__status="ACTIVE",
+        ).distinct()
+
+    partners_data = []
+    for partner in partners_qs:
+        loc = partner.user.location
+        if not loc.latitude or not loc.longitude:
+            continue
+
+        # Get max service radius across all active services for this partner
+        radius_agg = partner.services.filter(status="ACTIVE")
+        if category_filter:
+            radius_agg = radius_agg.filter(category_id=category_filter)
+        max_radius = radius_agg.aggregate(
+            max_r=Max("service_radius_km")
+        )["max_r"] or 10
+
+        # Partner name
+        name = partner.business_name
+        if not name:
+            try:
+                name = partner.user.customer_profile.full_name or ""
+            except Exception:
+                name = ""
+        name = name or partner.user.phone_number
+
+        # Partner services list
+        partner_services = list(
+            partner.services.filter(status="ACTIVE").values_list("title", flat=True)[:5]
+        )
+
+        partners_data.append({
+            "id": partner.id,
+            "user_id": str(partner.user.id),
+            "name": name,
+            "phone": str(partner.user.phone_number),
+            "type": partner.partner_type,
+            "type_label": partner.get_partner_type_display(),
+            "lat": float(loc.latitude),
+            "lng": float(loc.longitude),
+            "radius_km": max_radius,
+            "is_available": partner.is_available,
+            "is_verified": partner.is_verified,
+            "jobs_completed": partner.jobs_completed,
+            "rating": float(partner.rating),
+            "services": partner_services,
+        })
+
+    # ── Active / Pending bookings with location ──
+    booking_statuses = ["PENDING", "SEARCHING", "CONFIRMED", "IN_PROGRESS"]
+    if status_filter:
+        booking_statuses = [status_filter]
+
+    bookings_qs = Booking.objects.filter(
+        status__in=booking_statuses,
+        lat__isnull=False,
+        lng__isnull=False,
+    ).select_related("customer", "customer__customer_profile", "category", "service", "provider")
+
+    if category_filter:
+        bookings_qs = bookings_qs.filter(category_id=category_filter)
+
+    bookings_data = []
+    for booking in bookings_qs:
+        customer_name = ""
+        try:
+            customer_name = booking.customer.customer_profile.full_name or ""
+        except Exception:
+            pass
+        customer_name = customer_name or str(booking.customer.phone_number)
+
+        service_name = ""
+        if booking.service:
+            service_name = booking.service.title
+        elif booking.category:
+            service_name = booking.category.name
+
+        bookings_data.append({
+            "id": booking.id,
+            "booking_id": booking.booking_id,
+            "customer_name": customer_name,
+            "customer_phone": str(booking.customer.phone_number),
+            "service_name": service_name,
+            "category_id": booking.category_id,
+            "category_name": booking.category.name if booking.category else "",
+            "status": booking.status,
+            "status_label": booking.get_status_display(),
+            "booking_type": booking.booking_type,
+            "lat": float(booking.lat),
+            "lng": float(booking.lng),
+            "address": booking.address or "",
+            "scheduled_date": booking.scheduled_date.isoformat() if booking.scheduled_date else "",
+            "created_at": booking.created_at.strftime("%d %b %Y, %I:%M %p") if booking.created_at else "",
+            "total_amount": float(booking.total_amount) if booking.total_amount else 0,
+            "provider_name": (
+                booking.provider.business_name or str(booking.provider.user.phone_number)
+            ) if booking.provider else None,
+            "provider_id": booking.provider_id if booking.provider else None,
+        })
+
+    # ── Stats ──
+    total_partners_on_map = len(partners_data)
+    total_bookings_on_map = len(bookings_data)
+    partners_without_location = PartnerProfile.objects.filter(
+        user__location__isnull=True
+    ).count() + PartnerProfile.objects.filter(
+        user__location__latitude__isnull=True
+    ).count()
+
+    # ── Booking counts per category (for badge numbers on category cards) ──
+    from django.db.models import Count
+    active_booking_statuses = ["PENDING", "SEARCHING", "CONFIRMED", "IN_PROGRESS"]
+    booking_counts_qs = Booking.objects.filter(
+        status__in=active_booking_statuses,
+        category__isnull=False,
+    ).values("category_id").annotate(count=Count("id"))
+    booking_counts_by_category = {
+        item["category_id"]: item["count"] for item in booking_counts_qs
+    }
+    total_active_bookings = sum(booking_counts_by_category.values())
+
+    context = {
+        "page_title": "Map View",
+        "categories": categories,
+        "category_filter": category_filter,
+        "status_filter": status_filter,
+        "partners_json": json.dumps(partners_data),
+        "bookings_json": json.dumps(bookings_data),
+        "total_partners_on_map": total_partners_on_map,
+        "total_bookings_on_map": total_bookings_on_map,
+        "partners_without_location": partners_without_location,
+        "booking_counts_by_category": booking_counts_by_category,
+        "total_active_bookings": total_active_bookings,
+        "google_maps_key": django_settings.GOOGLE_MAPS_API_KEY,
+    }
+    return render(request, "adminpanel/map_view.html", context)
+
+
+@user_passes_test(is_agent, login_url="/api/v1/admin/login/")
+@require_POST
+def map_assign_partner(request):
+    """
+    Directly assign a partner to a booking from the map dispatch view.
+    """
+    from django.http import JsonResponse
+    from django.utils import timezone
+    from bookings.models import Booking, InstantBookingRequest
+
+    booking_id = request.POST.get("booking_id")
+    partner_id = request.POST.get("partner_id")
+
+    if not booking_id or not partner_id:
+        return JsonResponse({"success": False, "error": "Missing booking_id or partner_id."}, status=400)
+
+    booking = get_object_or_404(Booking, booking_id=booking_id)
+    partner = get_object_or_404(PartnerProfile, pk=partner_id)
+
+    if booking.status not in [Booking.Status.PENDING, Booking.Status.SEARCHING]:
+        return JsonResponse({
+            "success": False,
+            "error": f"Booking is already {booking.get_status_display()} and cannot be reassigned."
+        }, status=400)
+
+    with transaction.atomic():
+        booking.provider = partner
+        booking.status = Booking.Status.CONFIRMED
+        booking.assigned_at = timezone.now()
+        booking.accepted_by_agent = request.user
+        booking.save()
+
+        # Mark/expire any pending instant requests
+        InstantBookingRequest.objects.filter(
+            booking=booking,
+            status=InstantBookingRequest.RequestStatus.PENDING
+        ).update(
+            status=InstantBookingRequest.RequestStatus.EXPIRED,
+            responded_at=timezone.now()
+        )
+
+    partner_name = partner.business_name
+    if not partner_name:
+        try:
+            partner_name = partner.user.customer_profile.full_name or ""
+        except Exception:
+            partner_name = ""
+    partner_name = partner_name or str(partner.user.phone_number)
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Successfully assigned {partner_name} to Booking #{booking.booking_id}!",
+        "provider_name": partner_name,
+        "status": booking.status,
+        "status_label": booking.get_status_display(),
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Users List
 # ─────────────────────────────────────────────────────────────────────────────
 
