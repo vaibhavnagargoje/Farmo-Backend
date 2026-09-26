@@ -1,0 +1,151 @@
+/* ==========================================================================
+   Farmo Admin - Map View & Live Dispatch CSS
+   Location: apps/adminpanel/static/adminpanel/css/map_view.css
+   ========================================================================== */
+
+/* ── Minimal Hardware-Accelerated Radar Pulse for Pending Bookings ── */
+@keyframes farmoBeaconPulse {
+    0% {
+        transform: translate(-50%, -50%) scale(0.65);
+        opacity: 0.9;
+    }
+    60% {
+        transform: translate(-50%, -50%) scale(1.6);
+        opacity: 0.15;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1.8);
+        opacity: 0;
+    }
+}
+
+@keyframes farmoPinBounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-8px);
+    }
+}
+
+/* Ensure beacon overlay NEVER blocks marker clicks */
+.booking-beacon-overlay,
+.booking-beacon-overlay * {
+    pointer-events: none !important;
+    user-select: none !important;
+}
+
+.booking-beacon-overlay {
+    position: absolute;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1 !important;
+}
+
+.beacon-ring {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid #F59E0B;
+    top: 50%;
+    left: 50%;
+    animation: farmoBeaconPulse 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+    pointer-events: none !important;
+}
+
+.beacon-dot {
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background-color: #F59E0B;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0.7;
+    pointer-events: none !important;
+}
+
+/* ── Custom Scrollbar for Drawer & Queue Lists ── */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* ── Queue Sidebar Transition ── */
+#queueSidebar {
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
+}
+
+#queueSidebar.sidebar-collapsed {
+    transform: translateX(-105%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+#queueSidebar.sidebar-open {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ── Dispatch Drawer Transition ── */
+#dispatchDrawer {
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
+}
+
+#dispatchDrawer.drawer-collapsed {
+    transform: translateX(110%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+#dispatchDrawer.drawer-open {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ── Glassmorphism Surface ── */
+.glass-panel {
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+/* ── Category Pill Active Indicator ── */
+.category-pill {
+    transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Badge Pulse ── */
+.pulse-badge {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+    animation: badgePulse 2s infinite;
+}
+
+@keyframes badgePulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 6px rgba(245, 158, 11, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+    }
+}

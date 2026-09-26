@@ -56,6 +56,7 @@
         #sidebar-overlay { display:none; }
         #sidebar-overlay.active { display:block; }
     </style>
+    {% block extra_head %}{% endblock %}
 </head>
 <body class="bg-slate-100" style="min-height:100vh;">
 
@@ -207,5 +208,6 @@ function closeSidebar() {
     document.getElementById('sidebar-overlay').classList.remove('active');
 }
 </script>
+{% block extra_js %}{% endblock %}
 </body>
 </html>
