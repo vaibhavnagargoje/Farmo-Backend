@@ -203,11 +203,14 @@
         70% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
         100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
     }
+    .booking-beacon-overlay,
+    .booking-beacon-overlay * {
+        pointer-events: none !important;
+    }
     .booking-beacon-overlay {
         position: absolute;
         width: 32px;
         height: 32px;
-        pointer-events: none;
     }
     .beacon-ring {
         position: absolute;
@@ -250,13 +253,24 @@ let bookingsVisible = true;
 let activeInfoWindow = null;
 let currentHighlightedCircle = null;
 
+// ── HTML Escape Helper ──
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 // ── Distance Calculation Helper (Haversine km) ──
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
     const R = 6371; // Earth radius in km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const dLat = (Number(lat2) - Number(lat1)) * Math.PI / 180;
+    const dLon = (Number(lon2) - Number(lon1)) * Math.PI / 180;
     const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.cos(Number(lat1) * Math.PI / 180) * Math.cos(Number(lat2) * Math.PI / 180) *
               Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return Math.round(R * c * 10) / 10;
@@ -288,7 +302,6 @@ function createBookingMarkerIcon(status) {
     
     const fillColor = isNew ? '#F59E0B' : (isConfirmed ? '#3B82F6' : '#8B5CF6');
     const strokeColor = isNew ? '#D97706' : (isConfirmed ? '#2563EB' : '#7C3AED');
-    const badgeText = isNew ? 'NEW' : 'OK';
     const badgeBg = isNew ? '#EF4444' : '#10B981';
 
     const svg = `
@@ -324,12 +337,15 @@ class MinimalBeaconOverlay extends google.maps.OverlayView {
     onAdd() {
         this.div = document.createElement('div');
         this.div.className = 'booking-beacon-overlay';
+        this.div.style.pointerEvents = 'none';
         this.div.innerHTML = `
-            <div class="beacon-ring" style="border-color: ${this.color};"></div>
-            <div class="beacon-dot" style="background-color: ${this.color};"></div>
+            <div class="beacon-ring" style="border-color: ${this.color}; pointer-events: none;"></div>
+            <div class="beacon-dot" style="background-color: ${this.color}; pointer-events: none;"></div>
         `;
         const panes = this.getPanes();
-        panes.overlayLayer.appendChild(this.div);
+        if (panes && panes.overlayLayer) {
+            panes.overlayLayer.appendChild(this.div);
+        }
     }
     draw() {
         const projection = this.getProjection();
@@ -354,9 +370,9 @@ class MinimalBeaconOverlay extends google.maps.OverlayView {
 function initMap() {
     let defaultCenter = { lat: 18.5204, lng: 73.8567 }; // Maharashtra
     if (PARTNERS.length > 0) {
-        defaultCenter = { lat: PARTNERS[0].lat, lng: PARTNERS[0].lng };
+        defaultCenter = { lat: Number(PARTNERS[0].lat), lng: Number(PARTNERS[0].lng) };
     } else if (BOOKINGS.length > 0) {
-        defaultCenter = { lat: BOOKINGS[0].lat, lng: BOOKINGS[0].lng };
+        defaultCenter = { lat: Number(BOOKINGS[0].lat), lng: Number(BOOKINGS[0].lng) };
     }
 
     map = new google.maps.Map(document.getElementById('map'), {
@@ -392,12 +408,14 @@ function initMap() {
     PARTNERS.forEach(function(partner) {
         const isOnline = partner.is_available;
         const circleColor = isOnline ? '#10B981' : '#94A3B8';
+        const partnerLat = Number(partner.lat);
+        const partnerLng = Number(partner.lng);
 
         // Coverage circle (computed from actual active service radius)
         const circle = new google.maps.Circle({
             map: map,
-            center: { lat: partner.lat, lng: partner.lng },
-            radius: partner.radius_km * 1000,
+            center: { lat: partnerLat, lng: partnerLng },
+            radius: (Number(partner.radius_km) || 10) * 1000,
             fillColor: circleColor,
             fillOpacity: isOnline ? 0.08 : 0.04,
             strokeColor: circleColor,
@@ -411,7 +429,7 @@ function initMap() {
         // Marker
         const marker = new google.maps.Marker({
             map: map,
-            position: { lat: partner.lat, lng: partner.lng },
+            position: { lat: partnerLat, lng: partnerLng },
             icon: {
                 url: createPartnerMarkerIcon(circleColor, isOnline),
                 scaledSize: new google.maps.Size(32, 40),
@@ -431,22 +449,25 @@ function initMap() {
     // ── Render Bookings ──
     BOOKINGS.forEach(function(booking) {
         const isNew = (booking.status === 'PENDING' || booking.status === 'SEARCHING');
+        const bookingLat = Number(booking.lat);
+        const bookingLng = Number(booking.lng);
+
         const marker = new google.maps.Marker({
             map: map,
-            position: { lat: booking.lat, lng: booking.lng },
+            position: { lat: bookingLat, lng: bookingLng },
             icon: {
                 url: createBookingMarkerIcon(booking.status),
                 scaledSize: new google.maps.Size(34, 42),
                 anchor: new google.maps.Point(17, 42),
             },
-            title: booking.booking_id + ' — ' + booking.service_name,
+            title: (booking.booking_id || '') + ' — ' + (booking.service_name || 'Booking'),
             zIndex: isNew ? 35 : 20,
         });
 
         // Delicate beacon for new bookings
         if (isNew) {
             const beacon = new MinimalBeaconOverlay(
-                new google.maps.LatLng(booking.lat, booking.lng),
+                new google.maps.LatLng(bookingLat, bookingLng),
                 '#F59E0B'
             );
             beacon.setMap(map);
@@ -489,244 +510,314 @@ function openDrawer() {
 
 // ── Open Partner Drawer ──
 function openPartnerDrawer(partner, circle) {
-    if (currentHighlightedCircle) {
-        currentHighlightedCircle.setOptions({ strokeWeight: 1.2, fillOpacity: 0.08 });
-    }
-    if (circle) {
-        circle.setOptions({ strokeWeight: 2.5, fillOpacity: 0.16 });
-        currentHighlightedCircle = circle;
-    }
+    try {
+        if (!partner) return;
 
-    document.getElementById('drawerIconWrap').innerHTML = '🚜';
-    document.getElementById('drawerIconWrap').className = 'w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-100 text-emerald-800 text-base';
-    document.getElementById('drawerTitle').textContent = partner.name;
-    document.getElementById('drawerSubtitle').textContent = partner.type_label + ' · ' + (partner.is_available ? 'Online' : 'Offline');
+        if (currentHighlightedCircle) {
+            currentHighlightedCircle.setOptions({ strokeWeight: 1.2, fillOpacity: 0.08 });
+        }
+        if (circle) {
+            circle.setOptions({ strokeWeight: 2.5, fillOpacity: 0.16 });
+            currentHighlightedCircle = circle;
+        }
 
-    // Count bookings within this partner's radius
-    const bookingsInRange = BOOKINGS.filter(function(b) {
-        const d = calculateDistanceKm(partner.lat, partner.lng, b.lat, b.lng);
-        return d <= partner.radius_km;
-    });
+        const iconWrap = document.getElementById('drawerIconWrap');
+        if (iconWrap) {
+            iconWrap.innerHTML = '🚜';
+            iconWrap.className = 'w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-100 text-emerald-800 text-base';
+        }
+        const titleEl = document.getElementById('drawerTitle');
+        if (titleEl) titleEl.textContent = partner.name || 'Partner Details';
+        const subTitleEl = document.getElementById('drawerSubtitle');
+        if (subTitleEl) subTitleEl.textContent = (partner.type_label || 'Partner') + ' · ' + (partner.is_available ? 'Online' : 'Offline');
 
-    let servicesHtml = '';
-    if (partner.services && partner.services.length > 0) {
-        servicesHtml = `
-            <div class="mt-2.5">
-                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Offered Services</p>
-                <div class="flex flex-wrap gap-1">
-                    ${partner.services.map(s => `<span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] font-medium">${s}</span>`).join('')}
-                </div>
-            </div>`;
-    }
+        const partnerLat = Number(partner.lat);
+        const partnerLng = Number(partner.lng);
+        const partnerRadius = Number(partner.radius_km) || 10;
 
-    let inRangeBookingsHtml = '';
-    if (bookingsInRange.length > 0) {
-        inRangeBookingsHtml = `
-            <div class="mt-4 pt-4 border-t border-slate-200">
-                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Bookings In Coverage Area (${bookingsInRange.length})</p>
-                <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                    ${bookingsInRange.map(b => {
-                        const d = calculateDistanceKm(partner.lat, partner.lng, b.lat, b.lng);
-                        return `
-                            <div class="p-2 rounded-lg bg-slate-50 hover:bg-emerald-50/50 border border-slate-200 transition cursor-pointer flex items-center justify-between"
-                                 onclick="focusBookingById('${b.booking_id}')">
-                                <div>
-                                    <p class="font-bold text-slate-800 text-xs">${b.service_name}</p>
-                                    <p class="text-[10px] text-slate-500 font-mono">${b.booking_id} · ${d} km away</p>
+        // Count bookings within this partner's radius
+        const bookingsInRange = BOOKINGS.filter(function(b) {
+            const d = calculateDistanceKm(partnerLat, partnerLng, Number(b.lat), Number(b.lng));
+            return d <= partnerRadius;
+        });
+
+        let servicesHtml = '';
+        if (partner.services && partner.services.length > 0) {
+            servicesHtml = `
+                <div class="mt-2.5">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Offered Services</p>
+                    <div class="flex flex-wrap gap-1">
+                        ${partner.services.map(s => `<span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] font-medium">${escapeHtml(s)}</span>`).join('')}
+                    </div>
+                </div>`;
+        }
+
+        let inRangeBookingsHtml = '';
+        if (bookingsInRange.length > 0) {
+            inRangeBookingsHtml = `
+                <div class="mt-4 pt-4 border-t border-slate-200">
+                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Bookings In Coverage Area (${bookingsInRange.length})</p>
+                    <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                        ${bookingsInRange.map(b => {
+                            const d = calculateDistanceKm(partnerLat, partnerLng, Number(b.lat), Number(b.lng));
+                            return `
+                                <div class="p-2 rounded-lg bg-slate-50 hover:bg-emerald-50/50 border border-slate-200 transition cursor-pointer flex items-center justify-between"
+                                     onclick="focusBookingById('${escapeHtml(b.booking_id)}')">
+                                    <div>
+                                        <p class="font-bold text-slate-800 text-xs">${escapeHtml(b.service_name || 'Booking')}</p>
+                                        <p class="text-[10px] text-slate-500 font-mono">${escapeHtml(b.booking_id)} · ${d} km away</p>
+                                    </div>
+                                    <span class="text-[10px] font-bold text-emerald-700">₹${(Number(b.total_amount) || 0).toLocaleString('en-IN')}</span>
                                 </div>
-                                <span class="text-[10px] font-bold text-emerald-700">₹${b.total_amount}</span>
-                            </div>
-                        `;
-                    }).join('')}
+                            `;
+                        }).join('')}
+                    </div>
+                </div>`;
+        } else {
+            inRangeBookingsHtml = `
+                <div class="mt-4 pt-3 border-t border-slate-200 text-center py-3 text-slate-400 text-xs">
+                    No active bookings within this partner's ${partnerRadius} km radius.
+                </div>`;
+        }
+
+        const bodyHtml = `
+            <!-- Status & Stats Card -->
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${partner.is_available ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'}">
+                        <span class="w-1.5 h-1.5 rounded-full ${partner.is_available ? 'bg-emerald-500' : 'bg-slate-500'}"></span>
+                        ${partner.is_available ? 'Online & Accepting' : 'Offline'}
+                    </span>
+                    ${partner.is_verified ? '<span class="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">✓ Verified</span>' : '<span class="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">⚠ Pending KYC</span>'}
                 </div>
-            </div>`;
-    } else {
-        inRangeBookingsHtml = `
-            <div class="mt-4 pt-3 border-t border-slate-200 text-center py-3 text-slate-400 text-xs">
-                No active bookings within this partner's ${partner.radius_km} km radius.
-            </div>`;
+                
+                <div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-200/60 text-center">
+                    <div>
+                        <p class="text-[9px] text-slate-400 font-bold uppercase">Coverage</p>
+                        <p class="text-sm font-extrabold text-slate-800 mt-0.5">${partnerRadius} km</p>
+                    </div>
+                    <div>
+                        <p class="text-[9px] text-slate-400 font-bold uppercase">Jobs Done</p>
+                        <p class="text-sm font-extrabold text-slate-800 mt-0.5">${partner.jobs_completed || 0}</p>
+                    </div>
+                    <div>
+                        <p class="text-[9px] text-slate-400 font-bold uppercase">Rating</p>
+                        <p class="text-sm font-extrabold text-slate-800 mt-0.5">★ ${partner.rating || '0.0'}</p>
+                    </div>
+                </div>
+            </div>
+
+            ${servicesHtml}
+
+            <!-- Actions -->
+            <div class="flex gap-2 pt-1">
+                ${partner.phone ? `
+                <a href="tel:${String(partner.phone).replace(/\s+/g, '')}"
+                   class="flex-1 py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-center text-xs transition flex items-center justify-center gap-1.5">
+                    📞 Call Partner
+                </a>` : ''}
+                ${partner.user_id ? `
+                <a href="/api/v1/admin/manage/users/${partner.user_id}/" target="_blank"
+                   class="py-2 px-3 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-center text-xs transition flex items-center justify-center">
+                    Profile ↗
+                </a>` : ''}
+            </div>
+
+            ${inRangeBookingsHtml}
+        `;
+
+        const drawerBody = document.getElementById('drawerBody');
+        if (drawerBody) drawerBody.innerHTML = bodyHtml;
+        openDrawer();
+    } catch (err) {
+        console.error('Error opening partner drawer:', err);
+        openDrawer();
     }
-
-    const bodyHtml = `
-        <!-- Status & Stats Card -->
-        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2">
-            <div class="flex items-center justify-between">
-                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${partner.is_available ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'}">
-                    <span class="w-1.5 h-1.5 rounded-full ${partner.is_available ? 'bg-emerald-500' : 'bg-slate-500'}"></span>
-                    ${partner.is_available ? 'Online & Accepting' : 'Offline'}
-                </span>
-                ${partner.is_verified ? '<span class="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">✓ Verified</span>' : '<span class="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">⚠ Pending KYC</span>'}
-            </div>
-            
-            <div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-200/60 text-center">
-                <div>
-                    <p class="text-[9px] text-slate-400 font-bold uppercase">Coverage</p>
-                    <p class="text-sm font-extrabold text-slate-800 mt-0.5">${partner.radius_km} km</p>
-                </div>
-                <div>
-                    <p class="text-[9px] text-slate-400 font-bold uppercase">Jobs Done</p>
-                    <p class="text-sm font-extrabold text-slate-800 mt-0.5">${partner.jobs_completed}</p>
-                </div>
-                <div>
-                    <p class="text-[9px] text-slate-400 font-bold uppercase">Rating</p>
-                    <p class="text-sm font-extrabold text-slate-800 mt-0.5">★ ${partner.rating}</p>
-                </div>
-            </div>
-        </div>
-
-        ${servicesHtml}
-
-        <!-- Actions -->
-        <div class="flex gap-2 pt-1">
-            <a href="tel:${partner.phone}"
-               class="flex-1 py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-center text-xs transition flex items-center justify-center gap-1.5">
-                📞 Call Partner
-            </a>
-            <a href="/api/v1/admin/manage/users/${partner.user_id}/" target="_blank"
-               class="py-2 px-3 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-center text-xs transition flex items-center justify-center">
-                Profile ↗
-            </a>
-        </div>
-
-        ${inRangeBookingsHtml}
-    `;
-
-    document.getElementById('drawerBody').innerHTML = bodyHtml;
-    openDrawer();
 }
 
 // ── Open Booking Drawer ──
 function openBookingDrawer(booking) {
-    const isNew = (booking.status === 'PENDING' || booking.status === 'SEARCHING');
-    
-    document.getElementById('drawerIconWrap').innerHTML = booking.booking_type === 'INSTANT' ? '⚡' : '📅';
-    document.getElementById('drawerIconWrap').className = 'w-8 h-8 rounded-lg flex items-center justify-center ' +
-        (isNew ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800') + ' text-base';
-    document.getElementById('drawerTitle').textContent = booking.service_name || 'Booking Details';
-    document.getElementById('drawerSubtitle').textContent = '#' + booking.booking_id + ' · ' + booking.status_label;
+    try {
+        if (!booking) return;
+        const isNew = (booking.status === 'PENDING' || booking.status === 'SEARCHING');
+        
+        const iconWrap = document.getElementById('drawerIconWrap');
+        if (iconWrap) {
+            iconWrap.innerHTML = booking.booking_type === 'INSTANT' ? '⚡' : '📅';
+            iconWrap.className = 'w-8 h-8 rounded-lg flex items-center justify-center ' +
+                (isNew ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800') + ' text-base';
+        }
+        
+        const titleEl = document.getElementById('drawerTitle');
+        if (titleEl) {
+            titleEl.textContent = booking.service_name || booking.category_name || 'Booking Details';
+        }
+        
+        const subTitleEl = document.getElementById('drawerSubtitle');
+        if (subTitleEl) {
+            subTitleEl.textContent = '#' + (booking.booking_id || '') + ' · ' + (booking.status_label || booking.status || '');
+        }
 
-    // Find all partners who cover this booking location
-    const coveringPartners = [];
-    PARTNERS.forEach(function(p) {
-        const dist = calculateDistanceKm(p.lat, p.lng, booking.lat, booking.lng);
-        const inCoverage = (dist <= p.radius_km);
-        coveringPartners.push({
-            partner: p,
-            distance: dist,
-            inCoverage: inCoverage,
-        });
-    });
+        // Find all partners who cover this booking location
+        const coveringPartners = [];
+        const bookingLat = Number(booking.lat);
+        const bookingLng = Number(booking.lng);
 
-    // Sort by: inCoverage first, then shortest distance
-    coveringPartners.sort(function(a, b) {
-        if (a.inCoverage !== b.inCoverage) return a.inCoverage ? -1 : 1;
-        return a.distance - b.distance;
-    });
+        if (Array.isArray(PARTNERS)) {
+            PARTNERS.forEach(function(p) {
+                const pLat = Number(p.lat);
+                const pLng = Number(p.lng);
+                const pRadius = Number(p.radius_km) || 10;
+                const dist = calculateDistanceKm(pLat, pLng, bookingLat, bookingLng);
+                const inCoverage = (dist <= pRadius);
+                coveringPartners.push({
+                    partner: p,
+                    distance: dist,
+                    inCoverage: inCoverage,
+                });
+            });
 
-    const inCoverageCount = coveringPartners.filter(cp => cp.inCoverage).length;
+            // Sort by: inCoverage first, then shortest distance
+            coveringPartners.sort(function(a, b) {
+                if (a.inCoverage !== b.inCoverage) return a.inCoverage ? -1 : 1;
+                return a.distance - b.distance;
+            });
+        }
 
-    let partnerListHtml = '';
-    if (coveringPartners.length > 0) {
-        partnerListHtml = `
-            <div class="mt-4 pt-4 border-t border-slate-200">
-                <div class="flex items-center justify-between mb-2">
-                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        Available Partners (${inCoverageCount} in Range)
-                    </p>
-                    <span class="text-[10px] text-slate-400">Sorted by distance</span>
-                </div>
-                <div class="space-y-2 max-h-56 overflow-y-auto pr-1">
-                    ${coveringPartners.slice(0, 10).map(item => {
-                        const p = item.partner;
-                        const isAssigned = (booking.provider_id === p.id);
-                        return `
-                            <div class="p-2.5 rounded-xl border ${isAssigned ? 'bg-emerald-50 border-emerald-300' : (item.inCoverage ? 'bg-white border-slate-200 hover:border-slate-300' : 'bg-slate-50 border-slate-200/60 opacity-60')} transition">
-                                <div class="flex items-start justify-between gap-2">
-                                    <div>
-                                        <div class="flex items-center gap-1.5">
-                                            <p class="font-bold text-slate-800 text-xs">${p.name}</p>
-                                            ${item.inCoverage ? '<span class="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">In Range</span>' : '<span class="text-[9px] bg-slate-200 text-slate-600 font-medium px-1.5 py-0.2 rounded">Out of Range</span>'}
+        const inCoverageCount = coveringPartners.filter(cp => cp.inCoverage).length;
+
+        let partnerListHtml = '';
+        if (coveringPartners.length > 0) {
+            partnerListHtml = `
+                <div class="mt-4 pt-4 border-t border-slate-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                            Available Partners (${inCoverageCount} in Range)
+                        </p>
+                        <span class="text-[10px] text-slate-400">Sorted by distance</span>
+                    </div>
+                    <div class="space-y-2 max-h-56 overflow-y-auto pr-1">
+                        ${coveringPartners.slice(0, 10).map(item => {
+                            const p = item.partner;
+                            const isAssigned = (booking.provider_id && Number(booking.provider_id) === Number(p.id));
+                            const pName = p.name || ('Partner #' + p.id);
+                            const pRadius = p.radius_km || 10;
+                            const pRating = p.rating || '0.0';
+                            return `
+                                <div class="p-2.5 rounded-xl border ${isAssigned ? 'bg-emerald-50 border-emerald-300' : (item.inCoverage ? 'bg-white border-slate-200 hover:border-slate-300' : 'bg-slate-50 border-slate-200/60 opacity-60')} transition">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div>
+                                            <div class="flex items-center gap-1.5">
+                                                <p class="font-bold text-slate-800 text-xs">${escapeHtml(pName)}</p>
+                                                ${item.inCoverage ? '<span class="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">In Range</span>' : '<span class="text-[9px] bg-slate-200 text-slate-600 font-medium px-1.5 py-0.2 rounded">Out of Range</span>'}
+                                            </div>
+                                            <p class="text-[10px] text-slate-500 mt-0.5">
+                                                ${item.distance} km away · Coverage: ${pRadius} km · ★ ${pRating}
+                                            </p>
                                         </div>
-                                        <p class="text-[10px] text-slate-500 mt-0.5">
-                                            ${item.distance} km away · Coverage: ${p.radius_km} km · ★ ${p.rating}
-                                        </p>
+                                        ${isAssigned ? `
+                                            <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-lg shrink-0">Assigned ✓</span>
+                                        ` : (isNew ? `
+                                            <button onclick="assignPartnerToBooking('${escapeHtml(booking.booking_id)}', ${p.id})"
+                                                    class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[10px] shrink-0 transition flex items-center gap-1 shadow-sm">
+                                                Assign
+                                            </button>
+                                        ` : '')}
                                     </div>
-                                    ${isAssigned ? `
-                                        <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-lg shrink-0">Assigned ✓</span>
-                                    ` : (isNew ? `
-                                        <button onclick="assignPartnerToBooking('${booking.booking_id}', ${p.id}, '${p.name.replace(/'/g, "\\'")}')"
-                                                class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[10px] shrink-0 transition flex items-center gap-1 shadow-sm">
-                                            Assign
-                                        </button>
-                                    ` : '')}
                                 </div>
-                            </div>
-                        `;
-                    }).join('')}
+                            `;
+                        }).join('')}
+                    </div>
+                </div>`;
+        }
+
+        const totalAmountFormatted = (Number(booking.total_amount) || 0).toLocaleString('en-IN');
+        const customerName = booking.customer_name || 'Customer';
+        const customerPhone = booking.customer_phone || '';
+        const cleanPhone = customerPhone.replace(/\s+/g, '');
+
+        const bodyHtml = `
+            <!-- Booking Summary Card -->
+            <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2.5">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-slate-600">${escapeHtml(booking.category_name || 'Service')}</span>
+                    <span class="text-sm font-extrabold text-slate-900">₹${totalAmountFormatted}</span>
                 </div>
-            </div>`;
+                
+                <div class="space-y-1 text-xs pt-1 border-t border-slate-200/60">
+                    <div class="flex items-center justify-between text-slate-500">
+                        <span>Customer</span>
+                        <span class="font-bold text-slate-800">${escapeHtml(customerName)}</span>
+                    </div>
+                    ${booking.scheduled_date ? `
+                    <div class="flex items-center justify-between text-slate-500">
+                        <span>Scheduled Date</span>
+                        <span class="font-medium text-slate-700">${escapeHtml(booking.scheduled_date)}</span>
+                    </div>` : ''}
+                    ${booking.address ? `
+                    <div class="flex items-start justify-between text-slate-500 gap-2">
+                        <span class="shrink-0">Location</span>
+                        <span class="font-medium text-slate-700 text-right truncate max-w-[200px]">${escapeHtml(booking.address)}</span>
+                    </div>` : ''}
+                    <div class="flex items-center justify-between text-slate-500">
+                        <span>Provider</span>
+                        <span class="font-bold ${booking.provider_name ? 'text-emerald-700' : 'text-amber-700'}">
+                            ${booking.provider_name ? ('✓ ' + escapeHtml(booking.provider_name)) : '⚠ Not Assigned (Open)'}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Customer Call Action -->
+            ${customerPhone ? `
+            <div class="flex gap-2">
+                <a href="tel:${cleanPhone}"
+                   class="flex-1 py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-center text-xs transition flex items-center justify-center gap-1.5 shadow-sm">
+                    📞 Call Customer (${escapeHtml(customerPhone)})
+                </a>
+            </div>` : ''}
+
+            <div id="assignAlertWrap"></div>
+
+            ${partnerListHtml}
+        `;
+
+        const drawerBody = document.getElementById('drawerBody');
+        if (drawerBody) {
+            drawerBody.innerHTML = bodyHtml;
+        }
+        openDrawer();
+    } catch (err) {
+        console.error('Error opening booking drawer:', err);
+        // Fallback open with basic details
+        const drawerBody = document.getElementById('drawerBody');
+        if (drawerBody && booking) {
+            drawerBody.innerHTML = `
+                <div class="p-3 bg-amber-50 rounded-xl border border-amber-200">
+                    <p class="font-bold text-slate-800">#${escapeHtml(booking.booking_id || '')}</p>
+                    <p class="text-xs text-slate-600">${escapeHtml(booking.service_name || '')}</p>
+                    <p class="text-xs font-bold text-amber-700 mt-1">${escapeHtml(booking.status_label || booking.status || 'Pending')}</p>
+                </div>
+            `;
+        }
+        openDrawer();
     }
-
-    const bodyHtml = `
-        <!-- Booking Summary Card -->
-        <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2.5">
-            <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold text-slate-600">${booking.category_name}</span>
-                <span class="text-sm font-extrabold text-slate-900">₹${booking.total_amount.toLocaleString('en-IN')}</span>
-            </div>
-            
-            <div class="space-y-1 text-xs pt-1 border-t border-slate-200/60">
-                <div class="flex items-center justify-between text-slate-500">
-                    <span>Customer</span>
-                    <span class="font-bold text-slate-800">${booking.customer_name}</span>
-                </div>
-                ${booking.scheduled_date ? `
-                <div class="flex items-center justify-between text-slate-500">
-                    <span>Scheduled Date</span>
-                    <span class="font-medium text-slate-700">${booking.scheduled_date}</span>
-                </div>` : ''}
-                ${booking.address ? `
-                <div class="flex items-start justify-between text-slate-500 gap-2">
-                    <span class="shrink-0">Location</span>
-                    <span class="font-medium text-slate-700 text-right truncate max-w-[200px]">${booking.address}</span>
-                </div>` : ''}
-                <div class="flex items-center justify-between text-slate-500">
-                    <span>Provider</span>
-                    <span class="font-bold ${booking.provider_name ? 'text-emerald-700' : 'text-amber-700'}">
-                        ${booking.provider_name ? ('✓ ' + booking.provider_name) : '⚠ Not Assigned'}
-                    </span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Customer Call Action -->
-        <div class="flex gap-2">
-            <a href="tel:${booking.customer_phone}"
-               class="flex-1 py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-center text-xs transition flex items-center justify-center gap-1.5 shadow-sm">
-                📞 Call Customer (${booking.customer_phone})
-            </a>
-        </div>
-
-        <div id="assignAlertWrap"></div>
-
-        ${partnerListHtml}
-    `;
-
-    document.getElementById('drawerBody').innerHTML = bodyHtml;
-    openDrawer();
 }
 
 // ── Focus booking from partner list ──
 function focusBookingById(bookingId) {
     const booking = BOOKINGS.find(b => b.booking_id === bookingId);
     if (!booking) return;
-    map.panTo({ lat: booking.lat, lng: booking.lng });
+    map.panTo({ lat: Number(booking.lat), lng: Number(booking.lng) });
     map.setZoom(13);
     openBookingDrawer(booking);
 }
 
 // ── Assign Partner via AJAX ──
-function assignPartnerToBooking(bookingId, partnerId, partnerName) {
+function assignPartnerToBooking(bookingId, partnerId) {
+    const partner = PARTNERS.find(p => p.id === Number(partnerId));
+    const partnerName = partner ? (partner.name || ('Partner #' + partnerId)) : 'this partner';
+
     if (!confirm('Assign ' + partnerName + ' to Booking #' + bookingId + '?')) return;
 
     const alertWrap = document.getElementById('assignAlertWrap');
@@ -752,8 +843,19 @@ function assignPartnerToBooking(bookingId, partnerId, partnerName) {
             const booking = BOOKINGS.find(b => b.booking_id === bookingId);
             if (booking) {
                 booking.provider_name = data.provider_name;
+                booking.provider_id = Number(partnerId);
                 booking.status = data.status;
                 booking.status_label = data.status_label;
+            }
+
+            // Also find and update the map marker icon
+            const markerIndex = BOOKINGS.findIndex(b => b.booking_id === bookingId);
+            if (markerIndex >= 0 && bookingMarkers[markerIndex]) {
+                bookingMarkers[markerIndex].setIcon({
+                    url: createBookingMarkerIcon('CONFIRMED'),
+                    scaledSize: new google.maps.Size(34, 42),
+                    anchor: new google.maps.Point(17, 42),
+                });
             }
 
             // Refresh drawer
