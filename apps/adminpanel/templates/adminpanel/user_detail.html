@@ -271,6 +271,16 @@
                             <label class="block text-xs font-semibold text-slate-600 mb-1.5">Gender</label>
                             {{ customer_profile_form.gender }}
                         </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1.5">Date of Birth</label>
+                                {{ customer_profile_form.date_of_birth }}
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1.5">Age</label>
+                                {{ customer_profile_form.age }}
+                            </div>
+                        </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 mb-1.5">Profile Picture</label>
                             {{ customer_profile_form.profile_picture }}

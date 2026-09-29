@@ -833,6 +833,10 @@ def add_user(request):
                     profile.full_name = data["full_name"]
                 if data.get("gender"):
                     profile.gender = data["gender"]
+                if data.get("date_of_birth"):
+                    profile.date_of_birth = data["date_of_birth"]
+                if data.get("age"):
+                    profile.age = data["age"]
                 profile.save()
 
                 # 3. Create UserLocation if any location data was provided

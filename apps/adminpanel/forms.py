@@ -1,4 +1,5 @@
 from django import forms
+from django.utils import timezone
 
 from locations.models import UserLocation
 from partners.models import MachineryDetails, PartnerProfile, TransportDetails
@@ -57,13 +58,18 @@ class UserInfoForm(forms.ModelForm):
 class CustomerProfileAdminForm(forms.ModelForm):
     class Meta:
         model = CustomerProfile
-        fields = ["full_name", "gender", "profile_picture"]
+        fields = ["full_name", "gender", "date_of_birth", "age", "profile_picture"]
+        widgets = {
+            "date_of_birth": forms.DateInput(attrs={"type": "date", "class": "form-input"}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         _apply(self.fields)
         self.fields["full_name"].widget.attrs["placeholder"] = "Full name"
         self.fields["full_name"].required = False
+        if "age" in self.fields:
+            self.fields["age"].widget.attrs.update({"placeholder": "e.g. 35", "min": "1", "max": "120"})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -256,6 +262,17 @@ class AddUserForm(forms.Form):
         required=False,
         label="Gender",
     )
+    date_of_birth = forms.DateField(
+        widget=forms.DateInput(attrs={"type": "date"}),
+        required=False,
+        label="Date of Birth",
+    )
+    age = forms.IntegerField(
+        min_value=1,
+        max_value=120,
+        required=False,
+        label="Age",
+    )
 
     # ── Location ──────────────────────────────────────────────────────────────
     address = forms.CharField(
@@ -285,6 +302,13 @@ class AddUserForm(forms.Form):
         self.fields["phone_number"].widget.attrs.update({"placeholder": "+91 98765 43210"})
         self.fields["email"].widget.attrs.update({"placeholder": "farmer@example.com (optional)"})
         self.fields["full_name"].widget.attrs.update({"placeholder": "Full name of the user"})
+        self.fields["date_of_birth"].widget.attrs.update({"id": "id_date_of_birth"})
+        self.fields["age"].widget.attrs.update({
+            "id": "id_age",
+            "placeholder": "e.g. 35",
+            "min": "1",
+            "max": "120",
+        })
         self.fields["address"].widget.attrs.update({"placeholder": "e.g. At. Shirur, Tal. Shirur, Dist. Pune"})
         self.fields["latitude"].widget.attrs.update({
             "placeholder": "18.520430",
@@ -310,3 +334,21 @@ class AddUserForm(forms.Form):
         if User.objects.filter(email=email).exists():
             raise forms.ValidationError("A user with this email already exists.")
         return email
+
+    def clean_date_of_birth(self):
+        dob = self.cleaned_data.get("date_of_birth")
+        if dob:
+            today = timezone.now().date()
+            if dob > today:
+                raise forms.ValidationError("Date of birth cannot be in the future.")
+        return dob
+
+    def clean(self):
+        cleaned_data = super().clean()
+        dob = cleaned_data.get("date_of_birth")
+        age = cleaned_data.get("age")
+        if dob and not age:
+            today = timezone.now().date()
+            calculated_age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+            cleaned_data["age"] = max(0, calculated_age)
+        return cleaned_data

@@ -61,6 +61,22 @@
 
     <div class="f-hr"></div>
 
+    <!-- ── Row 3: Date of Birth + Age ────────────────────────────── -->
+    <div class="form-grid px-6 py-4">
+      <div class="f-group">
+        <label for="id_date_of_birth" class="f-label">Date of Birth <span class="f-opt">optional</span></label>
+        {{ form.date_of_birth }}
+        {% if form.date_of_birth.errors %}<p class="f-err">{{ form.date_of_birth.errors|join:", " }}</p>{% endif %}
+      </div>
+      <div class="f-group">
+        <label for="id_age" class="f-label">Age <span class="f-opt">optional · auto-calculated from DOB</span></label>
+        {{ form.age }}
+        {% if form.age.errors %}<p class="f-err">{{ form.age.errors|join:", " }}</p>{% endif %}
+      </div>
+    </div>
+
+    <div class="f-hr"></div>
+
     <!-- ── Row 3: Language + Active ──────────────────────────────── -->
     <div class="form-grid px-6 py-4">
       <div class="f-group">
@@ -248,6 +264,26 @@ function showStatus(type, msg) {
 }
 
 function id(x) { return document.getElementById(x); }
+
+// Auto-calculate Age when Date of Birth changes
+var dobInput = id('id_date_of_birth');
+var ageInput = id('id_age');
+if (dobInput && ageInput) {
+  dobInput.addEventListener('change', function() {
+    if (!this.value) return;
+    var dob = new Date(this.value);
+    if (isNaN(dob.getTime())) return;
+    var today = new Date();
+    var age = today.getFullYear() - dob.getFullYear();
+    var m = today.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+      age--;
+    }
+    if (age >= 0 && age <= 120) {
+      ageInput.value = age;
+    }
+  });
+}
 
 id('add-user-form').addEventListener('submit', function() {
   var btn = id('btn-submit');
