@@ -44,11 +44,14 @@ def _apply(fields, mapping=None):
 class UserInfoForm(forms.ModelForm):
     class Meta:
         model = User
-        fields = ["role", "is_active"]
+        fields = ["role", "is_active", "email", "preferred_language"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         _apply(self.fields)
+        if "email" in self.fields:
+            self.fields["email"].required = False
+            self.fields["email"].widget.attrs["placeholder"] = "farmer@example.com (optional)"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -196,6 +199,12 @@ class LaborDetailsAdminForm(forms.ModelForm):
         self.fields["daily_wage_estimate"].widget.attrs["placeholder"] = "e.g. 800"
         self.fields["daily_wage_estimate"].required = False
         self.fields["service_types"].label_from_instance = lambda obj: obj.get_name('mr')
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if commit:
+            instance.save()
+        return instance
 
 
 # ─────────────────────────────────────────────────────────────────────────────
