@@ -27,6 +27,8 @@ from .map import (
     map_data,
     map_message_draft,
     map_assign_partner,
+    map_cancel_booking,
+    map_complete_booking,
 )
 from .users import (
     users_list,
@@ -77,6 +79,8 @@ __all__ = [
     'map_data',
     'map_message_draft',
     'map_assign_partner',
+    'map_cancel_booking',
+    'map_complete_booking',
     'users_list',
     'add_user',
     '_build_user_detail_context',

@@ -202,6 +202,12 @@ def booking_data(booking, partners, unit_labels=None):
         "assigned_provider": assigned, "accepted_provider_id": accepted_id, "requests": requests,
         "message_url": reverse("adminpanel:map-message-draft"),
         "candidates": [candidate_data(booking, partner) for partner in partners.values()],
+        "start_job_otp": booking.start_job_otp or "",
+        "end_job_otp": booking.end_job_otp or "",
+        "job_otp": booking.job_otp or "",
+        "otp_mode_snapshot": booking.otp_mode_snapshot or "",
+        "completion_otp": booking.end_job_otp or booking.job_otp or "",
+        "cancellation_reason": booking.cancellation_reason or "",
     }
 
 

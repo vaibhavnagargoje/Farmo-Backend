@@ -280,7 +280,7 @@ class MapDispatchTests(TestCase):
         self.booking.refresh_from_db()
         self.assertEqual(self.booking.provider_id, None)
 
-    def test_refresh_exposes_service_prices_profile_links_and_no_otps(self):
+    def test_refresh_exposes_service_prices_profile_links_and_work_otps(self):
         payload = self.map_payload()
         provider = next(item for item in payload["partners"] if item["id"] == self.partner.pk)
         service = next(item for item in provider["service_details"] if item["id"] == self.service.pk)
@@ -295,8 +295,9 @@ class MapDispatchTests(TestCase):
         self.assertEqual(order["customer_profile_url"], reverse("adminpanel:user-detail", kwargs={"user_id": self.customer.pk}))
         self.assertIsNone(order["accepted_provider_id"])
         self.assertTrue(self.candidate(payload)["is_eligible"])
-        for otp in [self.booking.job_otp, self.booking.start_job_otp, self.booking.end_job_otp]:
-            self.assertNotIn(otp, str(payload))
+        self.assertEqual(order["job_otp"], self.booking.job_otp)
+        self.assertEqual(order["start_job_otp"], self.booking.start_job_otp)
+        self.assertEqual(order["end_job_otp"], self.booking.end_job_otp)
         self.assertTrue(payload["updated_at"])
         self.assertEqual(payload["stats"]["pending_bookings_count"], 1)
         self.area_lookup.assert_not_called()
@@ -388,6 +389,28 @@ class MapDispatchTests(TestCase):
                      {"booking_id": self.booking.booking_id, "partner_id": "not-an-id"}]:
             response = self.client.post(reverse("adminpanel:map-message-draft"), data)
             self.assertIn(response.status_code, [400, 404])
+
+    def test_cancel_booking_from_map(self):
+        url = reverse("adminpanel:map-cancel-booking")
+        res = self.client.post(url, {"booking_id": self.booking.booking_id, "reason": "Customer changed schedule"})
+        self.assertEqual(res.status_code, 200)
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.status, Booking.Status.CANCELLED)
+        self.assertEqual(self.booking.cancellation_reason, "Customer changed schedule")
+        self.assertEqual(self.booking.cancelled_by, self.agent)
+
+    def test_complete_booking_from_map_with_otp(self):
+        url = reverse("adminpanel:map-complete-booking")
+        # Incorrect OTP fails
+        bad_res = self.client.post(url, {"booking_id": self.booking.booking_id, "otp": "000000"})
+        self.assertEqual(bad_res.status_code, 400)
+        # Correct completion OTP succeeds
+        good_otp = self.booking.end_job_otp or self.booking.job_otp
+        res = self.client.post(url, {"booking_id": self.booking.booking_id, "otp": good_otp})
+        self.assertEqual(res.status_code, 200)
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.status, Booking.Status.COMPLETED)
+        self.assertIsNotNone(self.booking.work_completed_at)
 
 
 @override_settings(GOOGLE_GEOCODING_API_KEY="test-key", GOOGLE_MAPS_API_KEY="")

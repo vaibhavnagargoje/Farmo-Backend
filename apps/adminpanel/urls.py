@@ -16,6 +16,9 @@ urlpatterns = [
     path('map/data/', views.map_data, name='map-data'),
     path('map/message-draft/', views.map_message_draft, name='map-message-draft'),
     path('map/assign/', views.map_assign_partner, name='map-assign-partner'),
+    path('map/cancel/', views.map_cancel_booking, name='map-cancel-booking'),
+    path('map/complete/', views.map_complete_booking, name='map-complete-booking'),
+
 
     # ── New Admin Panel: Users ─────────────────────────────────────────────
     path('manage/users/', views.users_list, name='users-list'),

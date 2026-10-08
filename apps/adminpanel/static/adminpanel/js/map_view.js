@@ -8,6 +8,275 @@ let BeaconOverlay, refreshInFlight = false, draftSequence = 0, lastDialogFocus =
 const visiblePartnerCounts = { matched: 8, other: 8 };
 const selectedServices = new Map();
 
+function openStatsModal() {
+    const dialog = document.getElementById('statsModalDialog');
+    if (dialog && !dialog.open) {
+        lastDialogFocus = document.activeElement;
+        dialog.showModal();
+    }
+}
+function closeStatsModal() {
+    const dialog = document.getElementById('statsModalDialog');
+    if (dialog && dialog.open) {
+        dialog.close();
+        if (lastDialogFocus?.isConnected) lastDialogFocus.focus({ preventScroll: true });
+    }
+}
+window.openStatsModal = openStatsModal;
+window.closeStatsModal = closeStatsModal;
+
+function updateCategoryBadgesAndSorting(counts, totalActive) {
+    const allBadge = document.getElementById('allActiveBadge');
+    if (allBadge) {
+        allBadge.textContent = String(totalActive || 0);
+        allBadge.hidden = !totalActive;
+    }
+    const bar = document.getElementById('categoryBar');
+    if (!bar) return;
+    const categoryCards = Array.from(bar.querySelectorAll('.category-card'));
+    categoryCards.forEach(card => {
+        const id = card.dataset.categoryId;
+        const count = (counts && id && counts[id]) ? Number(counts[id]) : 0;
+        card.dataset.count = String(count);
+        let badge = card.querySelector('.category-count-badge');
+        if (count > 0) {
+            if (!badge) {
+                badge = node('span', 'category-count-badge absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center bg-amber-500 text-white text-[10px] font-bold rounded-full px-1 shadow-sm ring-2 ring-white z-10 pulse-badge');
+                card.appendChild(badge);
+            }
+            badge.textContent = String(count);
+            badge.hidden = false;
+            card.classList.add('bg-amber-50/40', 'border-amber-200/80');
+        } else {
+            if (badge) badge.hidden = true;
+            if (!card.classList.contains('ring-1')) {
+                card.classList.remove('bg-amber-50/40', 'border-amber-200/80');
+            }
+        }
+    });
+    categoryCards.sort((a, b) => {
+        const countA = Number(a.dataset.count || 0);
+        const countB = Number(b.dataset.count || 0);
+        if (countB !== countA) return countB - countA;
+        return (a.dataset.name || '').localeCompare(b.dataset.name || '');
+    });
+    categoryCards.forEach(card => bar.appendChild(card));
+    const allCard = document.getElementById('allCategoryCard');
+    if (allCard) bar.appendChild(allCard);
+}
+
+function renderOtpCard(label, code, hint, isPrimary = false) {
+    const card = node('div', `map-otp-card ${isPrimary ? 'is-primary' : ''}`);
+    const top = node('div', 'flex items-center justify-between');
+    top.append(node('span', 'map-otp-label', label));
+    const copyBtn = node('button', 'map-otp-copy-btn', 'Copy');
+    copyBtn.type = 'button';
+    copyBtn.title = 'Copy OTP code';
+    copyBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(code);
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = code;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                ta.remove();
+            }
+            copyBtn.textContent = 'Copied ✓';
+            setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+        } catch (_) {
+            copyBtn.textContent = code;
+        }
+    });
+    top.append(copyBtn);
+    card.append(top);
+    const codeEl = node('div', 'map-otp-code', code);
+    card.append(codeEl);
+    if (hint) {
+        card.append(node('span', 'map-otp-hint', hint));
+    }
+    return card;
+}
+
+let cancelTargetBooking = null;
+function openCancelDialog(booking) {
+    cancelTargetBooking = booking;
+    const dialog = document.getElementById('cancelBookingDialog');
+    if (!dialog) return;
+    document.getElementById('cancelBookingTargetId').value = booking.booking_id;
+    setText('cancelBookingIdLabel', '#' + booking.booking_id);
+    setText('cancelBookingCustomerLabel', booking.customer_name || 'Customer');
+    setText('cancelBookingServiceLabel', booking.service_name || booking.category_name || 'Order');
+    const select = document.getElementById('cancelReasonPreset');
+    if (select) select.selectedIndex = 0;
+    const customWrap = document.getElementById('cancelCustomReasonWrap');
+    if (customWrap) customWrap.hidden = true;
+    const customInput = document.getElementById('cancelCustomReason');
+    if (customInput) customInput.value = '';
+    dialog.showModal();
+}
+function closeCancelDialog() {
+    document.getElementById('cancelBookingDialog')?.close();
+    cancelTargetBooking = null;
+}
+function handleCancelReasonPresetChange(val) {
+    const customWrap = document.getElementById('cancelCustomReasonWrap');
+    if (customWrap) customWrap.hidden = (val !== 'custom');
+    if (val === 'custom') document.getElementById('cancelCustomReason')?.focus();
+}
+async function submitCancelBooking() {
+    const btn = document.getElementById('cancelConfirmSubmitBtn');
+    const bookingId = document.getElementById('cancelBookingTargetId')?.value;
+    if (!bookingId) return;
+    const preset = document.getElementById('cancelReasonPreset')?.value;
+    const customText = document.getElementById('cancelCustomReason')?.value?.trim();
+    const reason = (preset === 'custom' ? customText : preset) || 'Cancelled by admin from dispatch map';
+    if (preset === 'custom' && !customText) {
+        alert('Please specify the cancellation reason.');
+        return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Cancelling…';
+    const form = new FormData();
+    form.append('booking_id', bookingId);
+    form.append('reason', reason);
+    try {
+        const data = await readJson(await fetch(endpoint('cancelUrl', '/api/v1/admin/map/cancel/'), {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CSRF_TOKEN, Accept: 'application/json' },
+            body: form,
+            credentials: 'same-origin',
+        }));
+        announce(data.message || 'Booking cancelled.');
+        closeCancelDialog();
+        closeDrawer();
+        await refreshMapData(true);
+    } catch (err) {
+        alert(err.message || 'Failed to cancel booking.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Confirm Cancellation';
+    }
+}
+window.openCancelDialog = openCancelDialog;
+window.closeCancelDialog = closeCancelDialog;
+window.handleCancelReasonPresetChange = handleCancelReasonPresetChange;
+window.submitCancelBooking = submitCancelBooking;
+
+let completeTargetBooking = null;
+function openCompleteDialog(booking) {
+    completeTargetBooking = booking;
+    const dialog = document.getElementById('completeBookingDialog');
+    if (!dialog) return;
+    document.getElementById('completeBookingTargetId').value = booking.booking_id;
+    setText('completeBookingIdLabel', '#' + booking.booking_id);
+    setText('completeBookingProviderLabel', booking.provider_name ? 'Provider: ' + booking.provider_name : 'Assigned Provider');
+    setText('completeBookingAmountLabel', money(booking.total_amount));
+    const reqOtp = booking.completion_otp || booking.end_job_otp || booking.job_otp || '';
+    setText('completeRequiredOtpDisplay', reqOtp || 'None Required');
+    const input = document.getElementById('completeInputOtp');
+    if (input) {
+        input.value = reqOtp;
+    }
+    dialog.showModal();
+}
+function closeCompleteDialog() {
+    document.getElementById('completeBookingDialog')?.close();
+    completeTargetBooking = null;
+}
+function fillCompleteOtp() {
+    const reqOtp = completeTargetBooking?.completion_otp || completeTargetBooking?.end_job_otp || completeTargetBooking?.job_otp || '';
+    const input = document.getElementById('completeInputOtp');
+    if (input && reqOtp) {
+        input.value = reqOtp;
+        input.focus();
+    }
+}
+async function submitCompleteBooking() {
+    const btn = document.getElementById('completeConfirmSubmitBtn');
+    const bookingId = document.getElementById('completeBookingTargetId')?.value;
+    const otp = document.getElementById('completeInputOtp')?.value?.trim();
+    if (!bookingId) return;
+    btn.disabled = true;
+    btn.textContent = 'Completing…';
+    const form = new FormData();
+    form.append('booking_id', bookingId);
+    if (otp) form.append('otp', otp);
+    try {
+        const data = await readJson(await fetch(endpoint('completeUrl', '/api/v1/admin/map/complete/'), {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CSRF_TOKEN, Accept: 'application/json' },
+            body: form,
+            credentials: 'same-origin',
+        }));
+        announce(data.message || 'Booking marked as completed!');
+        closeCompleteDialog();
+        closeDrawer();
+        await refreshMapData(true);
+    } catch (err) {
+        alert(err.message || 'Failed to complete booking.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Mark as Completed ✓';
+    }
+}
+window.openCompleteDialog = openCompleteDialog;
+window.closeCompleteDialog = closeCompleteDialog;
+window.fillCompleteOtp = fillCompleteOtp;
+window.submitCompleteBooking = submitCompleteBooking;
+
+let reassignTargetBooking = null;
+function openReassignDialog(booking) {
+    reassignTargetBooking = booking;
+    const dialog = document.getElementById('reassignProviderDialog');
+    if (!dialog) return;
+    setText('reassignBookingIdLabel', '#' + booking.booking_id);
+    setText('reassignCurrentProviderLabel', booking.provider_name ? 'Current: ' + booking.provider_name : 'No provider assigned');
+    setText('reassignBookingServiceLabel', booking.service_name || booking.category_name || 'Order');
+
+    const container = document.getElementById('reassignCandidatesContainer');
+    if (container) {
+        container.replaceChildren();
+        const candidates = (booking.candidates || []).map(candidate => ({
+            candidate, partner: getPartner(candidate.provider_id)
+        })).filter(item => item.partner && Number(item.partner.id) !== Number(booking.provider_id));
+        candidates.sort((a, b) => (a.candidate.distance_km ?? Infinity) - (b.candidate.distance_km ?? Infinity));
+
+        if (!candidates.length) {
+            container.append(node('p', 'map-empty', 'No other eligible providers found in the current filter.'));
+        } else {
+            candidates.forEach(({ partner, candidate }) => {
+                const card = node('div', 'p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-300 transition flex items-center justify-between gap-3 shadow-xs');
+                const info = node('div', 'flex-1 min-w-0');
+                const nameRow = node('div', 'flex items-center gap-2');
+                nameRow.append(node('strong', 'text-xs text-slate-800 font-bold truncate', partner.name));
+                nameRow.append(badge(partner.is_available ? 'Online' : 'Offline', partner.is_available));
+                info.append(nameRow);
+                info.append(node('p', 'text-[11px] text-slate-500 mt-0.5', `${distanceLabel(distanceBetween(booking, partner))} · ★ ${partner.rating || '0.0'} · ${partner.jobs_completed || 0} jobs`));
+
+                const actions = node('div', 'shrink-0');
+                const assignBtn = action('Assign This Provider', async (e) => {
+                    closeReassignDialog();
+                    await dispatchPartnerToBooking(booking, partner, candidate.service_id, e.currentTarget, true);
+                }, 'map-action map-action-primary text-xs');
+                actions.append(assignBtn);
+                card.append(info, actions);
+                container.append(card);
+            });
+        }
+    }
+    dialog.showModal();
+}
+function closeReassignDialog() {
+    document.getElementById('reassignProviderDialog')?.close();
+    reassignTargetBooking = null;
+}
+window.openReassignDialog = openReassignDialog;
+window.closeReassignDialog = closeReassignDialog;
+
 function node(tag, className = '', text = null) {
     const element = document.createElement(tag);
     if (className) element.className = className;
@@ -113,13 +382,31 @@ function initFarmoMap() {
     renderMapEntities(); renderQueueSidebar(); fitAllMarkers(); setUpdatedTime(new Date().toISOString());
     document.addEventListener('keydown', event => {
         if (event.key !== 'Escape') return;
-        if (document.getElementById('messageDraftDialog')?.open) closeMessageDraft(); else closeDrawer();
+        if (document.getElementById('cancelBookingDialog')?.open) closeCancelDialog();
+        else if (document.getElementById('completeBookingDialog')?.open) closeCompleteDialog();
+        else if (document.getElementById('reassignProviderDialog')?.open) closeReassignDialog();
+        else if (document.getElementById('statsModalDialog')?.open) closeStatsModal();
+        else if (document.getElementById('messageDraftDialog')?.open) closeMessageDraft();
+        else closeDrawer();
     });
-    const dialog = document.getElementById('messageDraftDialog');
-    dialog?.addEventListener('cancel', event => { event.preventDefault(); closeMessageDraft(); });
-    dialog?.addEventListener('click', event => { if (event.target === dialog) closeMessageDraft(); });
+    ['cancelBookingDialog', 'completeBookingDialog', 'reassignProviderDialog', 'statsModalDialog', 'messageDraftDialog'].forEach(id => {
+        const dlg = document.getElementById(id);
+        dlg?.addEventListener('cancel', event => { event.preventDefault(); dlg.close(); });
+        dlg?.addEventListener('click', event => { if (event.target === dlg) dlg.close(); });
+    });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshMapData(); });
-    window.setInterval(() => { if (!document.hidden && !document.getElementById('messageDraftDialog')?.open && !document.getElementById('dispatchDrawer')?.contains(document.activeElement)) refreshMapData(); }, 45000);
+    window.setInterval(() => {
+        const modalOpen = Boolean(
+            document.getElementById('cancelBookingDialog')?.open ||
+            document.getElementById('completeBookingDialog')?.open ||
+            document.getElementById('reassignProviderDialog')?.open ||
+            document.getElementById('statsModalDialog')?.open ||
+            document.getElementById('messageDraftDialog')?.open
+        );
+        if (!document.hidden && !modalOpen && !document.getElementById('dispatchDrawer')?.contains(document.activeElement)) {
+            refreshMapData();
+        }
+    }, 45000);
 }
 function renderMapEntities() {
     hoverWindow?.close();
@@ -144,7 +431,18 @@ function renderMapEntities() {
 }
 function setQueueTab(tab) {
     currentQueueTab = tab;
-    document.querySelectorAll('.queue-tab-btn').forEach(button => { const active = button.dataset.tab === tab; button.classList.toggle('map-tab-active', active); button.classList.remove('bg-emerald-600', 'text-white', 'shadow-sm'); button.setAttribute('aria-pressed', String(active)); }); renderQueueSidebar();
+    document.querySelectorAll('.queue-tab-btn').forEach(button => {
+        const active = button.dataset.tab === tab;
+        button.setAttribute('aria-pressed', String(active));
+        if (active) {
+            button.classList.add('bg-emerald-600', 'text-white', 'shadow-sm', 'font-bold');
+            button.classList.remove('text-slate-600', 'hover:bg-slate-100');
+        } else {
+            button.classList.remove('bg-emerald-600', 'text-white', 'shadow-sm', 'font-bold');
+            button.classList.add('text-slate-600', 'hover:bg-slate-100');
+        }
+    });
+    renderQueueSidebar();
 }
 function handleQueueSearch(value) { queueSearchQuery = (value || '').toLowerCase().trim(); renderQueueSidebar(); }
 function searchText(item, isPartner) {
@@ -155,16 +453,97 @@ function searchText(item, isPartner) {
 }
 function renderQueueSidebar() {
     const container = document.getElementById('queueListContainer'); if (!container) return; container.replaceChildren();
-    setText('tabPendingCount', BOOKINGS.filter(isPending).length); setText('tabActiveCount', BOOKINGS.filter(b => ['CONFIRMED', 'IN_PROGRESS'].includes(b.status)).length); setText('tabAllCount', BOOKINGS.length);
-    const items = currentQueueTab === 'partners' ? PARTNERS : BOOKINGS.filter(b => currentQueueTab === 'pending' ? isPending(b) : currentQueueTab === 'in_progress' ? ['CONFIRMED', 'IN_PROGRESS'].includes(b.status) : true);
+    const pendingList = BOOKINGS.filter(isPending);
+    const activeList = BOOKINGS.filter(b => ['CONFIRMED', 'IN_PROGRESS'].includes(b.status));
+    setText('tabPendingCount', pendingList.length);
+    setText('tabActiveCount', activeList.length);
+    setText('tabAllCount', BOOKINGS.length);
+    const items = currentQueueTab === 'partners'
+        ? PARTNERS
+        : BOOKINGS.filter(b => currentQueueTab === 'pending' ? isPending(b) : currentQueueTab === 'in_progress' ? ['CONFIRMED', 'IN_PROGRESS'].includes(b.status) : true);
+
     items.filter(item => !queueSearchQuery || searchText(item, currentQueueTab === 'partners').includes(queueSearchQuery)).forEach(item => {
-        const partner = currentQueueTab === 'partners', selected = partner ? Number(item.id) === Number(selectedPartnerId) : item.booking_id === selectedBookingId;
-        const card = action('', () => partner ? focusPartnerById(item.id) : focusBookingById(item.booking_id), 'map-queue-card' + (selected ? ' is-selected' : '')); card.setAttribute('aria-pressed', String(selected));
-        const heading = node('span', 'map-card-heading'); heading.append(node('strong', '', partner ? item.name : item.service_name || item.category_name || 'Booking'), badge(partner ? item.is_available ? 'Online' : 'Offline' : item.status_label || item.status, partner ? item.is_available : !isPending(item)));
-        card.append(heading, node('span', 'map-muted', partner ? `${item.type_label} · ★ ${item.rating} · ${item.jobs_completed} jobs` : `#${item.booking_id} · ${item.customer_name}`));
-        if (!partner) { card.append(node('span', 'map-queue-footer', `${item.scheduled_date || 'Today'} ${item.scheduled_time || ''} · ${money(item.total_amount)}`)); if (!hasCoordinates(item)) card.append(node('span', 'map-warning-text', 'No GPS location — details available')); }
+        const isPartner = currentQueueTab === 'partners';
+        const selected = isPartner ? Number(item.id) === Number(selectedPartnerId) : item.booking_id === selectedBookingId;
+
+        let cardTypeClass = '';
+        if (isPartner) {
+            const online = item.is_available && item.is_active !== false;
+            cardTypeClass = online ? 'is-partner-online' : 'is-partner-offline';
+        } else {
+            if (isPending(item)) {
+                cardTypeClass = 'is-pending';
+            } else if (item.status === 'CONFIRMED') {
+                cardTypeClass = 'is-confirmed';
+            } else if (item.status === 'IN_PROGRESS') {
+                cardTypeClass = 'is-in-progress';
+            }
+        }
+
+        const card = action('', () => isPartner ? focusPartnerById(item.id) : focusBookingById(item.booking_id), `map-queue-card ${cardTypeClass}` + (selected ? ' is-selected' : ''));
+        card.setAttribute('aria-pressed', String(selected));
+
+        // Heading: Title + Status Badge
+        const heading = node('div', 'map-card-heading');
+        const titleText = isPartner ? item.name : (item.service_name || item.category_name || 'Booking');
+        heading.append(node('strong', 'truncate', titleText));
+
+        if (isPartner) {
+            const online = item.is_available && item.is_active !== false;
+            const badgeEl = node('span', `map-badge ${online ? 'badge-online' : 'badge-offline'}`);
+            badgeEl.append(node('span', `badge-dot ${online ? 'badge-dot-green' : 'badge-dot-slate'}`), document.createTextNode(online ? 'Online' : 'Offline'));
+            heading.append(badgeEl);
+        } else {
+            const pending = isPending(item);
+            const confirmed = item.status === 'CONFIRMED';
+            const inProgress = item.status === 'IN_PROGRESS';
+            const badgeClass = pending ? 'badge-pending' : (confirmed ? 'badge-confirmed' : (inProgress ? 'badge-in-progress' : ''));
+            const dotClass = pending ? 'badge-dot-amber' : (confirmed ? 'badge-dot-blue' : (inProgress ? 'badge-dot-green' : 'badge-dot-slate'));
+            const badgeEl = node('span', `map-badge ${badgeClass}`);
+            badgeEl.append(node('span', `badge-dot ${dotClass}`), document.createTextNode(item.status_label || item.status));
+            heading.append(badgeEl);
+        }
+        card.append(heading);
+
+        // Middle Row: Meta information
+        const metaRow = node('div', 'map-queue-meta');
+        if (isPartner) {
+            metaRow.append(node('span', 'map-muted', `${item.type_label} · ★ ${item.rating} · ${item.jobs_completed} jobs`));
+        } else {
+            metaRow.append(node('span', 'map-booking-id', `#${item.booking_id}`));
+            if (item.booking_type === 'INSTANT') {
+                metaRow.append(node('span', 'map-type-chip instant', '⚡ Instant'));
+            } else {
+                metaRow.append(node('span', 'map-type-chip scheduled', '📅 Scheduled'));
+            }
+            if (item.customer_name) {
+                metaRow.append(node('span', 'map-customer-name truncate', item.customer_name));
+            }
+        }
+        card.append(metaRow);
+
+        // Footer Row: Date/Time + Amount or Details
+        if (!isPartner) {
+            const footerRow = node('div', 'map-queue-footer');
+            const timeText = `${item.scheduled_date || 'Today'} ${item.scheduled_time || ''}`.trim();
+            footerRow.append(
+                node('span', 'text-slate-500 font-medium truncate', timeText || 'Immediate'),
+                node('span', 'map-price-tag', money(item.total_amount))
+            );
+            card.append(footerRow);
+
+            if (!hasCoordinates(item)) {
+                card.append(node('span', 'map-warning-text', '⚠️ No GPS location — details available'));
+            }
+        } else {
+            if (item.phone) {
+                card.append(node('span', 'text-[10px] text-slate-500 mt-0.5', `📞 ${item.phone}`));
+            }
+        }
+
         container.append(card);
-    }); if (!container.childElementCount) container.append(node('p', 'map-empty', 'No items match this filter.'));
+    });
+    if (!container.childElementCount) container.append(node('p', 'map-empty', 'No items match this filter.'));
 }
 function openDrawer() {
     const drawer = document.getElementById('dispatchDrawer'); drawer?.classList.replace('drawer-collapsed', 'drawer-open'); if (drawer) drawer.inert = false;
@@ -201,6 +580,57 @@ function renderBookingDrawer(booking) {
     overview.append(details); const customerActions = actionRow();
     if (phoneUrl(booking.customer_phone)) customerActions.append(link('Call customer', phoneUrl(booking.customer_phone)));
     if (booking.customer_profile_url) customerActions.append(link('Open profile ↗', booking.customer_profile_url)); overview.append(customerActions); body.append(overview);
+
+    // ── Work Security & OTPs Block ──
+    const hasOtp = Boolean(booking.start_job_otp || booking.end_job_otp || booking.job_otp);
+    if (hasOtp || ['CONFIRMED', 'IN_PROGRESS'].includes(booking.status)) {
+        const otpSection = section('Work Security & Verification OTPs');
+        otpSection.classList.add('map-otp-section');
+        const otpGrid = node('div', 'map-otp-grid');
+        if (booking.start_job_otp) {
+            otpGrid.append(renderOtpCard('Start Job OTP', booking.start_job_otp, 'Given to start work'));
+        }
+        if (booking.end_job_otp) {
+            otpGrid.append(renderOtpCard('Completion OTP', booking.end_job_otp, 'Customer PIN to finish', true));
+        } else if (booking.job_otp) {
+            otpGrid.append(renderOtpCard('Work OTP', booking.job_otp, 'Single PIN for completion', true));
+        } else {
+            const pendingOtpNote = node('div', 'map-otp-pending-box');
+            pendingOtpNote.append(node('span', '', '🔒 Work OTPs will be generated once assigned provider confirms.'));
+            otpGrid.append(pendingOtpNote);
+        }
+        otpSection.append(otpGrid);
+        body.append(otpSection);
+    }
+
+    // ── Dispatch Management Action Buttons ──
+    if (['PENDING', 'SEARCHING', 'CONFIRMED', 'IN_PROGRESS'].includes(booking.status)) {
+        const actionSection = section('Dispatch Actions');
+        actionSection.classList.add('map-manage-section');
+        const actionsWrap = node('div', 'map-actions map-booking-actions');
+
+        if (['CONFIRMED', 'IN_PROGRESS'].includes(booking.status)) {
+            const completeBtn = action('✓ Complete Work', () => openCompleteDialog(booking), 'map-action map-action-success');
+            completeBtn.title = 'Complete this booking work with OTP verification';
+            actionsWrap.append(completeBtn);
+        }
+
+        const reassignBtn = action('⇄ Assign Another Provider', () => openReassignDialog(booking), 'map-action map-action-reassign');
+        reassignBtn.title = 'Switch or assign a different provider for this order';
+        actionsWrap.append(reassignBtn);
+
+        const cancelBtn = action('🚫 Cancel Booking', () => openCancelDialog(booking), 'map-action map-action-danger');
+        cancelBtn.title = 'Cancel this booking order';
+        actionsWrap.append(cancelBtn);
+
+        actionSection.append(actionsWrap);
+        body.append(actionSection);
+    } else if (booking.status === 'CANCELLED' && booking.cancellation_reason) {
+        const cancelInfo = section('Cancellation Details');
+        cancelInfo.append(node('p', 'map-warning-text', `Reason: ${booking.cancellation_reason}`));
+        body.append(cancelInfo);
+    }
+
     if (selectedPartnerId) { const partner = getPartner(selectedPartnerId); if (partner) body.append(comparisonCard(booking, partner)); }
     const assigned = booking.assigned_provider || getPartner(booking.provider_id);
     if (assigned && isAssigned(booking, assigned)) { const assignedSection = section('Assigned provider'); assignedSection.append(providerCard(assigned, booking, getCandidate(booking, assigned), true)); body.append(assignedSection); }
@@ -313,13 +743,19 @@ async function openMessageDraft(booking, partner, channel) {
     }
 }
 function closeMessageDraft() { draftSequence++; document.getElementById('messageDraftDialog')?.close(); if (lastDialogFocus?.isConnected) lastDialogFocus.focus({ preventScroll: true }); }
-async function dispatchPartnerToBooking(booking, partner, serviceId, button) {
+async function dispatchPartnerToBooking(booking, partner, serviceId, button, isReassign = false) {
     if (!window.confirm(`Assign ${partner.name} to booking #${booking.booking_id}? This confirms the booking and reserves availability.`)) return;
     button.disabled = true; button.textContent = 'Assigning…'; const form = new FormData(); form.append('booking_id', booking.booking_id); form.append('partner_id', partner.id); if (serviceId) form.append('service_id', serviceId);
+    if (isReassign || booking.status === 'CONFIRMED') form.append('reassign', '1');
     try { const data = await readJson(await fetch(endpoint('assignUrl', '/api/v1/admin/map/assign/'), { method: 'POST', headers: { 'X-CSRFToken': CSRF_TOKEN, Accept: 'application/json' }, body: form, credentials: 'same-origin' })); announce(data.message || 'Provider assigned.'); await refreshMapData(true); }
     catch (error) { const alert = document.getElementById('assignAlertWrap'); if (alert) { alert.textContent = error.message; alert.className = 'map-error'; } button.disabled = false; button.textContent = 'Assign provider'; }
 }
-function setUpdatedTime(value) { const date = new Date(value); setText('mapUpdatedAt', 'Updated ' + (Number.isNaN(date.getTime()) ? 'just now' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))); }
+function setUpdatedTime(value) {
+    const date = new Date(value);
+    const timeStr = Number.isNaN(date.getTime()) ? 'just now' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setText('mapUpdatedAt', 'Updated ' + timeStr);
+    setText('statsModalUpdatedAt', 'Synced ' + timeStr);
+}
 async function refreshMapData(manual = false) {
     if (!map || refreshInFlight) return; refreshInFlight = true; const button = document.getElementById('mapRefreshBtn'); if (button) button.disabled = true;
     try {
@@ -330,7 +766,17 @@ async function refreshMapData(manual = false) {
         if (selectedBookingId && !getBooking()) { selectedBookingId = null; selectedPartnerId = null; closeDrawer(); announce('The selected booking left this filter or is no longer active.'); }
         if (selectedPartnerId && !getPartner(selectedPartnerId)) selectedPartnerId = null;
         renderMapEntities(); renderQueueSidebar(); if (getBooking()) renderBookingDrawer(getBooking()); else if (selectedPartnerId) renderPartnerDrawer(getPartner(selectedPartnerId)); else if (wasOpen) closeDrawer(); body.scrollTop = scroll;
-        const stats = data.stats || {}; setText('mapOnlineCount', `${stats.partners_online_count ?? PARTNERS.filter(p => p.is_available).length}/${stats.total_partners_on_map ?? PARTNERS.filter(hasCoordinates).length}`); setText('mapPendingCount', stats.pending_bookings_count ?? BOOKINGS.filter(isPending).length); setText('mapBookingCount', stats.total_bookings_on_map ?? BOOKINGS.filter(hasCoordinates).length); setText('mapNoGpsCount', stats.partners_without_location ?? '—'); setUpdatedTime(data.updated_at);
+        const stats = data.stats || {};
+        const pendingCount = stats.pending_bookings_count ?? BOOKINGS.filter(isPending).length;
+        setText('mapOnlineCount', `${stats.partners_online_count ?? PARTNERS.filter(p => p.is_available).length}/${stats.total_partners_on_map ?? PARTNERS.filter(hasCoordinates).length}`);
+        setText('mapPendingCount', pendingCount);
+        setText('mapBookingCount', stats.total_bookings_on_map ?? BOOKINGS.filter(hasCoordinates).length);
+        setText('mapNoGpsCount', stats.partners_without_location ?? '—');
+        setText('statsButtonPendingBadge', `${pendingCount} pending`);
+        setUpdatedTime(data.updated_at);
+        if (stats.booking_counts_by_category !== undefined) {
+            updateCategoryBadgesAndSorting(stats.booking_counts_by_category, stats.total_active_bookings);
+        }
         if (manual && !document.getElementById('mapNotice')?.textContent) announce('Map updated.');
     } catch (error) { setText('mapUpdatedAt', 'Refresh failed · showing last loaded data'); if (manual) announce(error.message, true); }
     finally { refreshInFlight = false; if (button) button.disabled = false; }

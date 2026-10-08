@@ -32,12 +32,18 @@ def _filters(request):
 def map_view(request):
     category, status = _filters(request)
     data = dispatch_data(category, status)
+    counts = data["stats"].get("booking_counts_by_category", {})
+    categories = list(Category.objects.filter(is_active=True))
+    for cat in categories:
+        cat.active_booking_count = counts.get(cat.id, 0)
+    categories.sort(key=lambda c: (-c.active_booking_count, c.name.lower()))
     return render(request, "adminpanel/map_view.html", {
-        "page_title": "Map View", "categories": Category.objects.filter(is_active=True).order_by("name"),
+        "page_title": "Map View", "categories": categories,
         "category_filter": category, "status_filter": status,
         "partners_data": data["partners"], "bookings_data": data["bookings"],
         "google_maps_key": settings.GOOGLE_MAPS_API_KEY, **data["stats"],
     })
+
 
 
 @require_GET
@@ -91,8 +97,12 @@ def map_assign_partner(request):
         return JsonResponse({"success": False, "error": "Select a valid booking and provider."}, status=400)
     with transaction.atomic():
         booking = get_object_or_404(Booking.objects.select_for_update(), booking_id=booking_id)
-        if booking.status not in (Booking.Status.PENDING, Booking.Status.SEARCHING) or booking.is_expired:
-            return JsonResponse({"success": False, "error": "This order is no longer awaiting assignment. Refresh the map."}, status=409)
+        is_reassign = request.POST.get("reassign") in ("true", "1", True)
+        if booking.status == Booking.Status.CONFIRMED and not is_reassign:
+            return JsonResponse({"success": False, "error": "This order is already assigned. Refresh the map."}, status=409)
+        if booking.status not in (Booking.Status.PENDING, Booking.Status.SEARCHING, Booking.Status.CONFIRMED) or booking.is_expired:
+            return JsonResponse({"success": False, "error": "This order cannot be assigned in its current status. Refresh the map."}, status=409)
+        old_provider_id = booking.provider_id
         get_object_or_404(PartnerProfile.objects.select_for_update(), pk=partner_id)
         requested_dates = {booking.scheduled_date or timezone.localdate(), timezone.localdate()}
         partner = get_object_or_404(partner_queryset(requested_dates), pk=partner_id)
@@ -110,6 +120,10 @@ def map_assign_partner(request):
         current_candidate = candidate_data(booking, partner_data(partner))
         if not current_candidate["is_eligible"] or selected_service_id not in current_candidate["service_ids"]:
             return JsonResponse({"success": False, "error": "This service changed. Refresh the map before assigning."}, status=409)
+        # Clean up old provider's busy day reservation if reassigning
+        if old_provider_id and old_provider_id != partner.id:
+            from availability.models import BusyDay
+            BusyDay.objects.filter(booking=booking, partner_id=old_provider_id).delete()
         # Scheduled orders keep their booked asset. Instant orders gain a
         # concrete eligible service while retaining the agreed price snapshot.
         booking.service = selected_service
@@ -129,4 +143,71 @@ def map_assign_partner(request):
         "provider_name": pdata["name"], "provider_id": partner.id, "provider_phone": pdata["phone"],
         "status": booking.status, "status_label": booking.get_status_display(), "booking": updated,
     })
+
+
+@require_POST
+@never_cache
+def map_cancel_booking(request):
+    if not is_agent(request.user):
+        return JsonResponse({"success": False, "error": "Admin access required."}, status=403)
+    booking_id = request.POST.get("booking_id")
+    reason = (request.POST.get("reason") or "").strip()
+    if not booking_id:
+        return JsonResponse({"success": False, "error": "Booking ID is required."}, status=400)
+    with transaction.atomic():
+        booking = get_object_or_404(Booking.objects.select_for_update(), booking_id=booking_id)
+        if booking.status in (Booking.Status.CANCELLED, Booking.Status.COMPLETED):
+            return JsonResponse({"success": False, "error": f"Booking is already {booking.get_status_display().lower()}."}, status=409)
+        booking.status = Booking.Status.CANCELLED
+        booking.cancellation_reason = reason or "Cancelled by admin from dispatch map"
+        booking.cancelled_by = request.user
+        booking.save()  # The model auto-cleans busy days and expires instant requests
+    return JsonResponse({
+        "success": True,
+        "message": f"Booking #{booking.booking_id} cancelled successfully.",
+        "booking_id": booking.booking_id,
+        "status": booking.status,
+    })
+
+
+@require_POST
+@never_cache
+def map_complete_booking(request):
+    if not is_agent(request.user):
+        return JsonResponse({"success": False, "error": "Admin access required."}, status=403)
+    booking_id = request.POST.get("booking_id")
+    otp = (request.POST.get("otp") or "").strip()
+    if not booking_id:
+        return JsonResponse({"success": False, "error": "Booking ID is required."}, status=400)
+    with transaction.atomic():
+        booking = get_object_or_404(Booking.objects.select_for_update(), booking_id=booking_id)
+        if booking.status == Booking.Status.COMPLETED:
+            return JsonResponse({"success": False, "error": "Booking is already completed."}, status=409)
+        if booking.status == Booking.Status.CANCELLED:
+            return JsonResponse({"success": False, "error": "Cancelled bookings cannot be completed."}, status=409)
+
+        expected_otp = booking.end_job_otp or booking.job_otp or booking.start_job_otp
+        if expected_otp and otp != expected_otp:
+            return JsonResponse({
+                "success": False,
+                "error": f"Invalid work completion OTP. Expected: {expected_otp}",
+            }, status=400)
+
+        booking.status = Booking.Status.COMPLETED
+        booking.work_completed_at = timezone.now()
+        if not booking.work_started_at:
+            booking.work_started_at = timezone.now()
+
+        if booking.provider:
+            booking.provider.jobs_completed += 1
+            booking.provider.save(update_fields=["jobs_completed"])
+
+        booking.save()
+    return JsonResponse({
+        "success": True,
+        "message": f"Booking #{booking.booking_id} marked as completed!",
+        "booking_id": booking.booking_id,
+        "status": booking.status,
+    })
+
 
