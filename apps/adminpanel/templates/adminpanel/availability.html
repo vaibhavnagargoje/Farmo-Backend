@@ -1,0 +1,164 @@
+{% extends 'adminpanel/base.html' %}
+{# Full Availability page: shared filters, Calendar / By day views, and bookings. #}
+{% block title %}Availability | Farmo Admin{% endblock %}
+{% block nav_availability %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'adminpanel:dashboard' %}" class="text-slate-400 hover:text-slate-600 transition-colors text-sm">Dashboard</a>
+<svg class="w-4 h-4 text-slate-300 mx-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+<span class="font-semibold text-slate-800 text-sm">Availability</span>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-5">
+
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <h1 class="text-xl font-bold text-slate-900">Availability</h1>
+            <p class="text-sm text-slate-500 mt-1">See partner availability across the month or explore a single day.</p>
+        </div>
+        <div class="inline-flex rounded-full bg-slate-200 p-1" role="radiogroup" aria-label="Availability view">
+            <label class="cursor-pointer">
+                <input type="radio" form="workersFilterForm" name="view" value="calendar" class="sr-only peer"
+                       {% if view_mode == 'calendar' %}checked{% endif %} onchange="this.form.requestSubmit()">
+                <span class="block rounded-full px-5 py-2 text-sm font-semibold text-slate-600 transition-colors peer-checked:bg-white peer-checked:text-slate-900 peer-checked:shadow-sm peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-slate-700">Calendar</span>
+            </label>
+            <label class="cursor-pointer">
+                <input type="radio" form="workersFilterForm" name="view" value="day" class="sr-only peer"
+                       {% if view_mode == 'day' %}checked{% endif %} onchange="this.form.requestSubmit()">
+                <span class="block rounded-full px-5 py-2 text-sm font-semibold text-slate-600 transition-colors peer-checked:bg-white peer-checked:text-slate-900 peer-checked:shadow-sm peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-slate-700">By day</span>
+            </label>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="bg-white border border-slate-200 p-4 shadow-sm">
+        <form method="get" class="space-y-4" id="workersFilterForm">
+            <!-- Main Row: Date, Type, Search, Action Buttons -->
+            <div class="flex flex-wrap items-end gap-3">
+                <div class="shrink-0">
+                    <label for="availabilityDate" class="block text-xs font-semibold text-slate-600 mb-1">Date</label>
+                    <input id="availabilityDate" type="date" name="date" value="{{ selected_date_str }}"
+                           class="form-input text-sm" style="width: 140px;">
+                </div>
+                <div class="shrink-0">
+                    <label for="availabilityType" class="block text-xs font-semibold text-slate-600 mb-1">Partner Type</label>
+                    <select id="availabilityType" name="type" class="form-input text-sm" style="width: 140px;">
+                        <option value="">All Types</option>
+                        {% for value, label in partner_type_choices %}
+                        <option value="{{ value }}" {% if partner_type_filter == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="flex-1 min-w-[200px]">
+                    <label for="availabilitySearch" class="block text-xs font-semibold text-slate-600 mb-1">Search</label>
+                    <input id="availabilitySearch" type="text" name="q" value="{{ search_q }}" placeholder="Phone or name..."
+                           class="form-input text-sm w-full">
+                </div>
+                
+                <!-- Action Buttons right-aligned -->
+                <div class="flex items-center gap-2 shrink-0">
+                    <button type="button" aria-controls="advancedFilters" aria-expanded="{% if gender_filter or skills_filter or category_filter or distance_filter or sort_by %}true{% else %}false{% endif %}"
+                            onclick="const hidden = document.getElementById('advancedFilters').classList.toggle('hidden'); this.setAttribute('aria-expanded', String(!hidden));"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-sm font-semibold transition-colors"
+                            style="height: 38px;">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+                        </svg>
+                        Filters
+                    </button>
+                    
+                    <button type="submit"
+                            class="inline-flex items-center gap-1.5 bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold px-4 py-1.5 transition-colors shadow-sm"
+                            style="height: 38px;">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        Apply filters
+                    </button>
+                </div>
+            </div>
+
+            <!-- Advanced Filters Row (Expandable) -->
+            <div id="advancedFilters" class="{% if not gender_filter and not skills_filter and not category_filter and not distance_filter and not sort_by %}hidden{% endif %} pt-3 border-t border-slate-100 flex flex-wrap items-end gap-3 transition-all">
+                <div class="shrink-0">
+                    <label for="availabilityGender" class="block text-xs font-semibold text-slate-600 mb-1">Gender</label>
+                    <select id="availabilityGender" name="gender" class="form-input text-sm" style="min-width: 120px;">
+                        <option value="">All</option>
+                        {% for value, label in gender_choices %}
+                        <option value="{{ value }}" {% if gender_filter == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="shrink-0">
+                    <label for="availabilitySkills" class="block text-xs font-semibold text-slate-600 mb-1">Skills</label>
+                    <select id="availabilitySkills" name="skills" class="form-input text-sm" style="max-width: 160px;">
+                        <option value="">All Skills</option>
+                        {% for s in all_labor_skills %}
+                        <option value="{{ s.name }}" {% if skills_filter == s.name or skills_filter == s.id|stringformat:"d" %}selected{% endif %}>
+                            {% if s.name_translations.mr %}{{ s.name_translations.mr }}{% else %}{{ s.name }}{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="shrink-0">
+                    <label for="availabilityCategory" class="block text-xs font-semibold text-slate-600 mb-1">Service category</label>
+                    <select id="availabilityCategory" name="category" class="form-input text-sm" style="max-width: 160px;">
+                        <option value="">All Categories</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat.id }}" {% if category_filter == cat.id|stringformat:"d" %}selected{% endif %}>{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="shrink-0">
+                    <label for="availabilityDistance" class="block text-xs font-semibold text-slate-600 mb-1">Distance (km)</label>
+                    <select id="availabilityDistance" name="distance" class="form-input text-sm" style="min-width: 120px;">
+                        <option value="">All</option>
+                        <option value="5" {% if distance_filter == "5" %}selected{% endif %}>≤ 5 km</option>
+                        <option value="10" {% if distance_filter == "10" %}selected{% endif %}>≤ 10 km</option>
+                        <option value="20" {% if distance_filter == "20" %}selected{% endif %}>≤ 20 km</option>
+                        <option value="30" {% if distance_filter == "30" %}selected{% endif %}>≤ 30 km</option>
+                        <option value="50" {% if distance_filter == "50" %}selected{% endif %}>≤ 50 km</option>
+                    </select>
+                </div>
+                <div class="shrink-0">
+                    <label for="availabilitySort" class="block text-xs font-semibold text-slate-600 mb-1">Sort By (day list)</label>
+                    <select id="availabilitySort" name="sort" class="form-input text-sm" style="min-width: 150px;">
+                        <option value="">Default</option>
+                        <option value="wage_asc" {% if sort_by == "wage_asc" %}selected{% endif %}>Wage: Low → High</option>
+                        <option value="wage_desc" {% if sort_by == "wage_desc" %}selected{% endif %}>Wage: High → Low</option>
+                        <option value="distance" {% if sort_by == "distance" %}selected{% endif %}>Distance: Nearest</option>
+                        <option value="rating" {% if sort_by == "rating" %}selected{% endif %}>Rating: Highest</option>
+                    </select>
+                </div>
+                
+                {% if gender_filter or skills_filter or category_filter or distance_filter or sort_by %}
+                <div class="shrink-0 ml-auto">
+                    <a href="{{ clear_advanced_url }}"
+                       class="text-sm text-slate-500 hover:text-slate-700 underline self-center inline-block pt-2">Clear Advanced</a>
+                </div>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    {% if not has_agent_location %}
+    <div class="bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+        Distance calculation requires a saved location in your profile.
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 xl:grid-cols-4 gap-4 items-start">
+        <section class="xl:col-span-3 min-w-0 space-y-5" aria-label="Partner availability">
+            {% if view_mode == 'calendar' %}
+                {% include 'adminpanel/includes/availability_calendar.html' %}
+            {% else %}
+                {% include 'adminpanel/includes/availability_day.html' %}
+            {% endif %}
+        </section>
+        <aside class="xl:col-span-1 min-w-0" aria-label="Bookings">
+            {% include 'adminpanel/includes/availability_bookings.html' %}
+        </aside>
+    </div>
+</div>
+{% endblock %}

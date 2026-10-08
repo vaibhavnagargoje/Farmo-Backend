@@ -17,6 +17,10 @@
 {% block content %}
 <!-- CSRF Token & Data for Map AJAX actions -->
 <input type="hidden" id="mapCsrfToken" value="{{ csrf_token }}">
+<div id="mapConfig" hidden
+     data-data-url="{% url 'adminpanel:map-data' %}"
+     data-message-url="{% url 'adminpanel:map-message-draft' %}"
+     data-assign-url="{% url 'adminpanel:map-assign-partner' %}"></div>
 {{ partners_data|json_script:"partners-data" }}
 {{ bookings_data|json_script:"bookings-data" }}
 
@@ -96,23 +100,23 @@
             <div class="shrink-0 flex items-center gap-2 pl-3 border-l border-slate-200">
                 <div class="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1">
                     <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                    <span class="text-xs font-bold text-emerald-800">{{ partners_online_count }}/{{ total_partners_on_map }}</span>
+                    <span id="mapOnlineCount" class="text-xs font-bold text-emerald-800">{{ partners_online_count }}/{{ total_partners_on_map }}</span>
                     <span class="text-[10px] text-emerald-600 font-medium">Online</span>
                 </div>
                 <div class="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1">
                     <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                    <span class="text-xs font-bold text-amber-800">{{ pending_bookings_count }}</span>
+                    <span id="mapPendingCount" class="text-xs font-bold text-amber-800">{{ pending_bookings_count }}</span>
                     <span class="text-[10px] text-amber-600 font-medium">Pending</span>
                 </div>
                 <div class="flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1">
                     <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-                    <span class="text-xs font-bold text-blue-800">{{ total_bookings_on_map }}</span>
+                    <span id="mapBookingCount" class="text-xs font-bold text-blue-800">{{ total_bookings_on_map }}</span>
                     <span class="text-[10px] text-blue-600 font-medium">Total On Map</span>
                 </div>
                 {% if partners_without_location > 0 %}
                 <div class="flex items-center gap-1.5 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1" title="Partners without GPS coordinates">
                     <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                    <span class="text-xs font-bold text-rose-800">{{ partners_without_location }}</span>
+                    <span id="mapNoGpsCount" class="text-xs font-bold text-rose-800">{{ partners_without_location }}</span>
                     <span class="text-[10px] text-rose-600 font-medium">No GPS</span>
                 </div>
                 {% endif %}
@@ -186,6 +190,11 @@
 
         <!-- ═══ TOP RIGHT: MAP CONTROLS ═══ -->
         <div class="absolute top-4 right-4 flex flex-col gap-2 z-10">
+            <button type="button" onclick="refreshMapData(true)" id="mapRefreshBtn"
+                    class="glass-panel border border-slate-200/90 rounded-xl shadow-md px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition flex items-center justify-between gap-2 disabled:opacity-60">
+                <span id="mapUpdatedAt" class="text-[11px] text-slate-500 font-medium">Updated just now</span>
+                <span class="text-emerald-700">Refresh</span>
+            </button>
             <!-- Toggle Queue Sidebar -->
             <button onclick="toggleQueueSidebar()" id="toggleQueueBtn"
                     class="glass-panel border border-slate-200/90 rounded-xl shadow-md px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition flex items-center gap-2">
@@ -283,6 +292,22 @@
                 <!-- Dynamically filled by map_view.js -->
             </div>
         </div>
+
+        <p id="mapNotice" role="status" hidden
+           class="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 glass-panel border border-slate-200 rounded-xl shadow-lg px-4 py-2 text-xs font-semibold text-slate-700"></p>
+
+        <!-- Message draft: opens the admin's own WhatsApp / SMS, nothing is sent from here -->
+        <dialog id="messageDraftDialog" class="map-dialog" aria-labelledby="messageDraftTitle">
+            <div class="map-dialog-head">
+                <div>
+                    <h3 id="messageDraftTitle">Message provider</h3>
+                    <p id="messageDraftRecipient"></p>
+                </div>
+                <button type="button" onclick="closeMessageDraft()" aria-label="Close" class="map-dialog-close">&times;</button>
+            </div>
+            <div id="messageDraftBody" class="map-dialog-body"></div>
+            <div id="messageDraftActions" class="map-actions map-dialog-actions"></div>
+        </dialog>
 
         <!-- No API Key Warning Overlay -->
         {% if not google_maps_key %}

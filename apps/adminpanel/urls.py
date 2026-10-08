@@ -13,6 +13,8 @@ urlpatterns = [
 
     # ── Map View ──────────────────────────────────────────────────────────
     path('map/', views.map_view, name='map-view'),
+    path('map/data/', views.map_data, name='map-data'),
+    path('map/message-draft/', views.map_message_draft, name='map-message-draft'),
     path('map/assign/', views.map_assign_partner, name='map-assign-partner'),
 
     # ── New Admin Panel: Users ─────────────────────────────────────────────

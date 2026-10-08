@@ -1,0 +1,55 @@
+        <!-- Right Side (25%) - Bookings Feed -->
+        <div class="bg-white flex flex-col border border-slate-300 shadow-sm">
+            <div class="border-b border-slate-300 p-4 bg-slate-50">
+                <h2 class="font-bold text-slate-900 text-lg uppercase tracking-wide">Bookings</h2>
+                <p class="text-xs text-slate-500 mt-1">Latest incoming and active bookings across all partners.</p>
+            </div>
+            
+            <div class="p-3 flex-1 space-y-3 bg-slate-50/50 overflow-y-auto">
+                <!-- Pending Bookings -->
+                {% if pending_bookings %}
+                <p class="text-[10px] font-bold text-amber-600 uppercase tracking-wider px-1">Pending</p>
+                {% for booking in pending_bookings %}
+                <div class="border border-slate-300 p-3 bg-white shadow-sm border-l-4 border-l-amber-500 transition-colors">
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-1.5 py-0.5 uppercase">{{ booking.get_status_display }}</span>
+                        <span class="text-[10px] text-slate-500 font-medium">{{ booking.booking_id }}</span>
+                    </div>
+                    <p class="font-bold text-slate-900 text-sm">{% if booking.service %}{{ booking.service.title }}{% elif booking.category %}{{ booking.category.name }}{% else %}Booking{% endif %}</p>
+                    <p class="text-xs text-slate-600 mt-0.5">{{ booking.customer.customer_profile.full_name|default:booking.customer.phone_number }}</p>
+                    {% if booking.scheduled_date %}
+                    <p class="text-xs text-slate-500 font-medium">{{ booking.scheduled_date|date:"d M Y" }}</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                {% endif %}
+
+                <!-- Active Bookings -->
+                {% if active_bookings %}
+                <p class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider px-1 mt-2">Active</p>
+                {% for booking in active_bookings %}
+                <div class="border border-slate-300 p-3 bg-white shadow-sm border-l-4 border-l-emerald-500 transition-colors">
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-1.5 py-0.5 uppercase">{{ booking.get_status_display }}</span>
+                        <span class="text-[10px] text-slate-500 font-medium">{{ booking.booking_id }}</span>
+                    </div>
+                    <p class="font-bold text-slate-900 text-sm">{% if booking.service %}{{ booking.service.title }}{% elif booking.category %}{{ booking.category.name }}{% else %}Booking{% endif %}</p>
+                    <p class="text-xs text-slate-600 mt-0.5">Provider: {% if booking.provider %}{{ booking.provider.user.phone_number }}{% else %}—{% endif %}</p>
+                    {% if booking.scheduled_date %}
+                    <p class="text-xs text-slate-500 font-medium">{{ booking.scheduled_date|date:"d M Y" }}</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                {% endif %}
+
+                <!-- No bookings -->
+                {% if not pending_bookings and not active_bookings %}
+                <div class="text-center py-8">
+                    <svg class="w-8 h-8 mx-auto text-slate-200 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                    <p class="text-slate-400 text-xs">No active bookings</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
