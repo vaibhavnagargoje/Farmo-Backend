@@ -310,7 +310,7 @@ class InstantBookingCreateSerializer(serializers.Serializer):
         required=False,
         allow_null=True,
         allow_blank=True,
-        help_text="ServicePriceUnit.key — validated against active units"
+        help_text="Deprecated and ignored: the unit is always taken from the resolved pricing zone."
     )
     note = serializers.CharField(required=False, allow_blank=True, default="")
     address = serializers.CharField()
@@ -318,16 +318,6 @@ class InstantBookingCreateSerializer(serializers.Serializer):
     lng = serializers.FloatField()
     scheduled_date = serializers.DateField(required=False, allow_null=True)
     scheduled_time = serializers.TimeField(required=False, allow_null=True)
-
-    def validate_price_unit(self, value):
-        if value:
-            from services.models import ServicePriceUnit
-            if not ServicePriceUnit.objects.filter(key=value, is_active=True).exists():
-                valid_keys = list(ServicePriceUnit.objects.filter(is_active=True).values_list('key', flat=True))
-                raise serializers.ValidationError(
-                    f"Invalid price unit '{value}'. Valid options: {valid_keys}"
-                )
-        return value
 
     def validate_scheduled_date(self, value):
         from django.utils import timezone
@@ -426,18 +416,17 @@ class InstantBookingCreateSerializer(serializers.Serializer):
         quantity = validated_data['quantity']
         radius_km = category.instant_search_radius_km
 
-        # Resolve location-aware price (zone → default zone → category fallback)
+        # Resolve location-aware price (zone → default zone → category fallback).
+        # The unit always comes from the same source as the price: a zone price
+        # is only meaningful in that zone's unit, so a client-sent unit is ignored.
         from locations.pricing import resolve_instant_price
-        unit_price, resolved_price_unit, zone_name = resolve_instant_price(
+        unit_price, price_unit, zone_name = resolve_instant_price(
             category, user_lat, user_lng
         )
         if unit_price <= 0:
             raise serializers.ValidationError(
                 "Instant booking price is not configured for this category."
             )
-        requested_unit = validated_data.get('price_unit')
-        price_unit = requested_unit or resolved_price_unit
-
         # Find nearby services for provider broadcast
         nearby_services = self._find_nearby_services(
             category, user_lat, user_lng, radius_km

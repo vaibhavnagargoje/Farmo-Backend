@@ -1,6 +1,5 @@
 from django.contrib import admin
-from .models import UserLocation
-from .pricing_models import PricingZone
+from .models import PricingZone, UserLocation
 
 
 @admin.register(UserLocation)

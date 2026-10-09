@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from services.models import Category, ServicePriceUnit
 
@@ -73,4 +74,34 @@ class PricingZone(models.Model):
     def __str__(self):
         tag = " [DEFAULT]" if self.is_default else ""
         return f"{self.category.name} — {self.name}{tag} (₹{self.price}/{self.price_unit.name})"
+
+    def clean(self):
+        super().clean()
+        has_center = self.center_lat is not None and self.center_lng is not None
+        has_any_center = self.center_lat is not None or self.center_lng is not None
+
+        if self.is_default:
+            # The resolver ignores coordinates on a default zone, so it would silently
+            # apply everywhere instead of only inside the radius.
+            if has_any_center:
+                raise ValidationError(
+                    "A default zone is the fallback for customers outside every geographic zone, "
+                    "so it cannot have a center point. Clear the latitude/longitude, "
+                    "or untick 'Is default' to make it a geographic zone."
+                )
+            if self.is_active and self.category_id:
+                other_defaults = PricingZone.objects.filter(
+                    category_id=self.category_id, is_default=True, is_active=True,
+                ).exclude(pk=self.pk)
+                if other_defaults.exists():
+                    raise ValidationError(
+                        "This category already has an active default zone. "
+                        "Only one default (fallback) zone is allowed per category."
+                    )
+        elif not has_center:
+            # The resolver skips non-default zones without coordinates, so they would never apply.
+            raise ValidationError(
+                "A geographic zone needs both center latitude and longitude. "
+                "To use this zone as the fallback for all other areas, tick 'Is default'."
+            )
 

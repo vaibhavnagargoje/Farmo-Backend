@@ -71,8 +71,8 @@ class CategorySerializer(serializers.ModelSerializer):
                 lng = get_request_param(request, 'lng')
                 if lat and lng:
                     try:
-                        from locations.pricing import resolve_instant_price
-                        price, unit, zone_name = resolve_instant_price(obj, float(lat), float(lng))
+                        from locations.pricing import resolve_instant_price_detail
+                        price, unit, _zone_name = resolve_instant_price_detail(obj, float(lat), float(lng))
                         result = (price, unit)
                     except (ValueError, TypeError):
                         pass
@@ -82,18 +82,17 @@ class CategorySerializer(serializers.ModelSerializer):
     def get_instant_price(self, obj):
         resolved = self._resolve_zone_price(obj)
         if resolved:
-            return str(resolved[0])
+            return f"{resolved[0]:.2f}"
         return str(obj.instant_price)
 
     def get_instant_price_unit(self, obj):
         resolved = self._resolve_zone_price(obj)
-        if resolved:
-            return resolved[1]
-        return obj.instant_price_unit.key if obj.instant_price_unit else 'HOUR'
+        unit = resolved[1] if resolved else obj.instant_price_unit
+        return unit.key if unit else 'HOUR'
 
     def get_instant_price_unit_display(self, obj):
         resolved = self._resolve_zone_price(obj)
-        unit = obj.instant_price_unit
+        unit = resolved[1] if resolved else obj.instant_price_unit
         if unit:
             return unit.get_name(self._get_lang())
         return 'Hour'

@@ -3,8 +3,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 
-from .models import UserLocation
-from .serializers import LocationUpdateSerializer
+from ..models import UserLocation
+from ..serializers import LocationUpdateSerializer
 
 
 class UserLocationView(APIView):

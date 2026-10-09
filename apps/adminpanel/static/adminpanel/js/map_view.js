@@ -365,6 +365,22 @@ function defineOverlays() {
         onRemove() { this.div?.remove(); }
     };
 }
+const MAP_WHITE_STYLE = [
+    { elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+    { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }] },
+    { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+    { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+    { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#fbfbfb' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#f3f4f6' }] },
+    { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#71717a' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#e5e7eb' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#e2e8f0' }] },
+    { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#94a3b8' }] },
+    { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#e2e8f0' }] }
+];
+
 function initFarmoMap() {
     try { PARTNERS = JSON.parse(document.getElementById('partners-data')?.textContent || '[]'); BOOKINGS = JSON.parse(document.getElementById('bookings-data')?.textContent || '[]'); }
     catch (_) { announce('Map data could not be loaded. Refresh the page.', true); return; }
@@ -375,7 +391,7 @@ function initFarmoMap() {
         mapTypeControl: true, mapTypeControlOptions: { position: google.maps.ControlPosition.TOP_LEFT, style: google.maps.MapTypeControlStyle.DROPDOWN_MENU },
         streetViewControl: false, fullscreenControl: false, zoomControl: true,
         zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_BOTTOM },
-        styles: [{ featureType: 'poi', stylers: [{ visibility: 'off' }] }, { featureType: 'transit', stylers: [{ visibility: 'off' }] }],
+        styles: MAP_WHITE_STYLE,
     });
     hoverWindow = new google.maps.InfoWindow({ disableAutoPan: true });
     map.addListener('click', () => hoverWindow.close());
@@ -394,19 +410,6 @@ function initFarmoMap() {
         dlg?.addEventListener('cancel', event => { event.preventDefault(); dlg.close(); });
         dlg?.addEventListener('click', event => { if (event.target === dlg) dlg.close(); });
     });
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshMapData(); });
-    window.setInterval(() => {
-        const modalOpen = Boolean(
-            document.getElementById('cancelBookingDialog')?.open ||
-            document.getElementById('completeBookingDialog')?.open ||
-            document.getElementById('reassignProviderDialog')?.open ||
-            document.getElementById('statsModalDialog')?.open ||
-            document.getElementById('messageDraftDialog')?.open
-        );
-        if (!document.hidden && !modalOpen && !document.getElementById('dispatchDrawer')?.contains(document.activeElement)) {
-            refreshMapData();
-        }
-    }, 45000);
 }
 function renderMapEntities() {
     hoverWindow?.close();
