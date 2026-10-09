@@ -69,5 +69,28 @@
         </a>
     </div>
     {% endif %}
+
+    <!-- Bookings today -->
+    <section aria-labelledby="dash-bookings-heading">
+        <div class="flex items-center justify-between mb-2">
+            <h2 id="dash-bookings-heading" class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Bookings right now</h2>
+            <a href="{% url 'adminpanel:bookings' %}" class="text-xs font-semibold text-emerald-700 hover:underline">Bookings overview →</a>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {% for tile in booking_tiles %}
+            <a href="{{ tile.url }}" class="bg-white border p-3 shadow-sm hover:bg-slate-50 transition-all {% if tile.alert and tile.value %}border-rose-200{% else %}border-slate-200 hover:border-slate-300{% endif %}">
+                <p class="text-[10px] font-bold uppercase tracking-wide {% if tile.alert and tile.value %}text-rose-600{% else %}text-slate-500{% endif %}">{{ tile.label }}</p>
+                <p class="text-xl font-bold text-slate-900 leading-none mt-1">{{ tile.value }}</p>
+                <p class="text-[10px] text-slate-400 mt-1">{{ tile.hint }}</p>
+            </a>
+            {% endfor %}
+            <button type="button" onclick="QuickBook.open()"
+                    class="bg-emerald-600 hover:bg-emerald-700 text-white p-3 shadow-sm text-left transition-colors">
+                <p class="text-[10px] font-bold uppercase tracking-wide text-emerald-100">Caller on the line?</p>
+                <p class="text-base font-bold leading-tight mt-1">⚡ Quick Book</p>
+                <p class="text-[10px] text-emerald-100 mt-1">find or add the customer, book instantly</p>
+            </button>
+        </div>
+    </section>
 </div>
 {% endblock %}

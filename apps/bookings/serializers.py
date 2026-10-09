@@ -1,8 +1,7 @@
 # apps/bookings/serializers.py
 from rest_framework import serializers
 from django.utils import timezone
-from django.db.models import FloatField, Value, F, ExpressionWrapper
-from django.db.models.functions import ACos, Cos, Radians, Sin
+from .instant import InstantBookingError, active_instant_booking, create_instant_booking
 from .models import Booking, InstantBookingRequest
 from services.serializers import ServiceListSerializer
 from services.models import Category, Service
@@ -344,17 +343,7 @@ class InstantBookingCreateSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         """Check if user already has an active instant booking in the SAME category."""
-        user = self.context['request'].user
-        active_booking = Booking.objects.filter(
-            customer=user,
-            booking_type=Booking.BookingType.INSTANT,
-            category_id=attrs['category_id'],
-            status__in=[
-                Booking.Status.SEARCHING,
-                Booking.Status.CONFIRMED,
-                Booking.Status.IN_PROGRESS,
-            ],
-        ).first()
+        active_booking = active_instant_booking(self.context['request'].user, attrs['category_id'])
         if active_booking:
             raise serializers.ValidationError({
                 "active_booking_id": active_booking.booking_id,
@@ -362,118 +351,23 @@ class InstantBookingCreateSerializer(serializers.Serializer):
             })
         return attrs
 
-    def _find_nearby_services(self, category, user_lat, user_lng, radius_km):
-        """
-        Find active services within radius using Haversine formula.
-        Uses partner's UserLocation for coordinates.
-        Returns queryset annotated with distance.
-        """
-        from availability.models import BusyDay
-        today = timezone.now().date()
-
-        # Get partner IDs that are busy today
-        busy_partner_ids = BusyDay.objects.filter(
-            date=today,
-            service__isnull=True,  # Partner-level busy
-        ).values_list('partner_id', flat=True)
-
-        queryset = Service.objects.filter(
-            category=category,
-            status=Service.Status.ACTIVE,
-            is_available=True,
-            partner__is_available=True,  # Master switch
-            partner__is_verified=True,
-        ).exclude(
-            partner__user__location__isnull=True
-        ).exclude(
-            partner__user__location__latitude__isnull=True
-        ).exclude(
-            partner__user__location__longitude__isnull=True
-        ).exclude(
-            partner_id__in=busy_partner_ids  # Calendar availability check
-        )
-
-        queryset = queryset.annotate(
-            distance=ExpressionWrapper(
-                Value(6371.0) * ACos(
-                    Cos(Radians(Value(float(user_lat), output_field=FloatField()))) *
-                    Cos(Radians(F('partner__user__location__latitude'))) *
-                    Cos(Radians(F('partner__user__location__longitude')) - Radians(Value(float(user_lng), output_field=FloatField()))) +
-                    Sin(Radians(Value(float(user_lat), output_field=FloatField()))) *
-                    Sin(Radians(F('partner__user__location__latitude')))
-                ),
-                output_field=FloatField()
-            )
-        ).filter(distance__lte=radius_km).order_by('distance')
-
-        return queryset
-
     def create(self, validated_data):
-        user = self.context['request'].user
-        category = Category.objects.get(id=validated_data['category_id'])
-        user_lat = validated_data['lat']
-        user_lng = validated_data['lng']
-        quantity = validated_data['quantity']
-        radius_km = category.instant_search_radius_km
-
-        # Resolve location-aware price (zone → default zone → category fallback).
-        # The unit always comes from the same source as the price: a zone price
-        # is only meaningful in that zone's unit, so a client-sent unit is ignored.
-        from locations.pricing import resolve_instant_price
-        unit_price, price_unit, zone_name = resolve_instant_price(
-            category, user_lat, user_lng
-        )
-        if unit_price <= 0:
-            raise serializers.ValidationError(
-                "Instant booking price is not configured for this category."
+        # Pricing (zone → default zone → category) and the provider broadcast
+        # live in bookings.instant so Quick Book in the admin panel shares them.
+        try:
+            booking, _providers_notified = create_instant_booking(
+                customer=self.context['request'].user,
+                category=Category.objects.get(id=validated_data['category_id']),
+                lat=validated_data['lat'],
+                lng=validated_data['lng'],
+                address=validated_data['address'],
+                quantity=validated_data['quantity'],
+                note=validated_data.get('note', ''),
+                scheduled_date=validated_data.get('scheduled_date'),
+                scheduled_time=validated_data.get('scheduled_time'),
             )
-        # Find nearby services for provider broadcast
-        nearby_services = self._find_nearby_services(
-            category, user_lat, user_lng, radius_km
-        )
-
-        from django.utils import timezone
-        scheduled_date = validated_data.get('scheduled_date') or timezone.localdate()
-        scheduled_time = validated_data.get('scheduled_time') or timezone.localtime(timezone.now()).time().replace(second=0, microsecond=0)
-
-        # Create the booking
-        booking = Booking.objects.create(
-            booking_type=Booking.BookingType.INSTANT,
-            customer=user,
-            category=category,
-            status=Booking.Status.SEARCHING,
-            address=validated_data['address'],
-            lat=user_lat,
-            lng=user_lng,
-            quantity=quantity,
-            price_unit=price_unit,
-            unit_price=unit_price,
-            total_amount=round(unit_price * quantity, 2),
-            note=validated_data.get('note', ''),
-            scheduled_date=scheduled_date,
-            scheduled_time=scheduled_time,
-        )
-
-        # Find distinct providers from nearby services and create broadcast requests
-        # Use distinct partners to avoid sending multiple requests to the same provider
-        seen_providers = set()
-        broadcast_count = 0
-        for svc in nearby_services.select_related('partner'):
-            if svc.partner_id not in seen_providers:
-                seen_providers.add(svc.partner_id)
-                InstantBookingRequest.objects.create(
-                    booking=booking,
-                    provider=svc.partner,
-                    broadcast_round=1,
-                    distance_km=round(svc.distance, 2) if svc.distance else None,
-                    response_deadline=booking.expires_at,
-                )
-                broadcast_count += 1
-
-        booking.broadcast_count = 1
-        booking.current_broadcast_radius = radius_km
-        booking.save(update_fields=['broadcast_count', 'current_broadcast_radius'])
-
+        except InstantBookingError as exc:
+            raise serializers.ValidationError(str(exc))
         return booking
 
 

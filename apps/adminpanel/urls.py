@@ -15,10 +15,6 @@ urlpatterns = [
     path('map/', views.map_view, name='map-view'),
     path('map/data/', views.map_data, name='map-data'),
     path('map/message-draft/', views.map_message_draft, name='map-message-draft'),
-    path('map/assign/', views.map_assign_partner, name='map-assign-partner'),
-    path('map/cancel/', views.map_cancel_booking, name='map-cancel-booking'),
-    path('map/complete/', views.map_complete_booking, name='map-complete-booking'),
-
 
     # ── New Admin Panel: Users ─────────────────────────────────────────────
     path('manage/users/', views.users_list, name='users-list'),
@@ -45,4 +41,26 @@ urlpatterns = [
     path('manage/users/<uuid:user_id>/calendar/toggle/', views.agent_toggle_busy_day, name='worker-calendar-toggle'),
     path('manage/users/<uuid:user_id>/calendar/booking-action/', views.agent_worker_booking_action, name='worker-calendar-booking-action'),
     path('manage/availability/', views.agent_workers_by_date, name='workers-by-date'),
+
+    # ── Bookings ──────────────────────────────────────────────────────────
+    path('bookings/', views.bookings_overview, name='bookings'),
+    path('bookings/all/', views.bookings_list, name='bookings-list'),
+    path('bookings/instant/', views.bookings_list, name='bookings-instant'),
+    path('bookings/scheduled/', views.bookings_list, name='bookings-scheduled'),
+    path('bookings/export/', views.bookings_export, name='bookings-export'),
+
+    # Actions on one booking (used by Map View and Bookings pages; POST JSON)
+    path('bookings/actions/assign/', views.booking_assign_partner, name='booking-assign'),
+    path('bookings/actions/cancel/', views.booking_cancel, name='booking-cancel'),
+    path('bookings/actions/complete/', views.booking_complete, name='booking-complete'),
+    path('bookings/actions/retry-search/', views.booking_rebroadcast, name='booking-rebroadcast'),
+
+    # Quick Book wizard (global slide-over; JSON)
+    path('bookings/quick-book/user-search/', views.quick_book_user_search, name='quick-book-user-search'),
+    path('bookings/quick-book/categories/', views.quick_book_categories, name='quick-book-categories'),
+    path('bookings/quick-book/create/', views.quick_book_create, name='quick-book-create'),
+
+    # Booking detail (catch-all last; ids look like FB-XXXXXXXX / BK-XXXXXXXX)
+    path('bookings/<str:booking_id>/', views.booking_detail, name='booking-detail'),
 ]
+

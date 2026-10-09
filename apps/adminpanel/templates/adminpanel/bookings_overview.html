@@ -1,0 +1,271 @@
+{% extends 'adminpanel/base.html' %}
+{% block title %}Bookings | Farmo Admin{% endblock %}
+{% block nav_bookings %}active{% endblock %}
+{% block nav_bookings_open %}open{% endblock %}
+
+{% block breadcrumb %}
+<span class="font-semibold text-slate-800">Bookings</span>
+<span class="text-slate-300">/</span>
+<span class="text-slate-500">Overview</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+    .viz-root {
+        --surface-1: #ffffff;
+        --text-primary: #0f172a;
+        --text-secondary: #475569;
+        --text-muted: #94a3b8;
+        --grid: #eef0f3;
+        --baseline: #cbd5e1;
+        --series-1: #2a78d6;   /* Instant */
+        --series-2: #eb6834;   /* Scheduled */
+    }
+    .viz-plot { position: relative; height: 220px; margin-left: 36px; }
+    .viz-grid { position: absolute; left: 0; right: 0; border-top: 1px solid var(--grid); }
+    .viz-grid.is-base { border-top-color: var(--baseline); }
+    .viz-tick { position: absolute; left: -36px; width: 30px; text-align: right; transform: translateY(-50%); font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .viz-cols { position: absolute; inset: 0; display: flex; align-items: flex-end; }
+    .viz-slot { flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; justify-content: center; outline: none; cursor: default; }
+    .viz-slot:hover .viz-stack, .viz-slot:focus-visible .viz-stack { filter: brightness(1.12); }
+    .viz-slot:focus-visible { box-shadow: inset 0 0 0 2px var(--baseline); border-radius: 4px; }
+    .viz-stack { width: 70%; max-width: 24px; min-width: 2px; display: flex; flex-direction: column-reverse; gap: 2px; border-radius: 4px 4px 0 0; overflow: hidden; }
+    .viz-seg-1 { background: var(--series-1); }
+    .viz-seg-2 { background: var(--series-2); }
+    .viz-xlabels { display: flex; margin-left: 36px; margin-top: 6px; }
+    .viz-xlabels span { flex: 1 1 0; font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: visible; text-align: left; }
+    .viz-key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+    .viz-tooltip { position: fixed; z-index: 60; pointer-events: none; background: var(--surface-1); border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 8px 24px rgba(15,23,42,0.12); padding: 8px 10px; font-size: 12px; color: var(--text-secondary); min-width: 140px; }
+    .viz-tooltip strong { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+    .viz-tooltip .line-key { display: inline-block; width: 12px; height: 2px; border-radius: 1px; vertical-align: middle; margin-right: 6px; }
+    .viz-bar-track { height: 14px; }
+    .viz-bar { height: 14px; background: var(--series-1); border-radius: 0 4px 4px 0; min-width: 2px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-5 max-w-7xl mx-auto viz-root">
+
+    {% include 'adminpanel/includes/bookings_tabs.html' %}
+
+    <!-- ── Right now ────────────────────────────────────────────── -->
+    <section aria-labelledby="live-heading">
+        <h2 id="live-heading" class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Right now</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {% for tile in live_tiles %}
+            <a href="{{ tile.url }}" class="group bg-white border rounded-xl p-4 shadow-sm hover:shadow transition-shadow {% if tile.alert and tile.value %}border-rose-200{% else %}border-slate-200{% endif %}">
+                <p class="text-xs font-medium text-slate-500">{{ tile.label }}</p>
+                <p class="text-2xl font-bold text-slate-900 leading-none mt-1.5">{{ tile.value }}</p>
+                <p class="text-[11px] mt-1.5 {% if tile.alert and tile.value %}text-rose-700 font-medium{% else %}text-slate-400{% endif %}">{{ tile.hint }} <span class="group-hover:underline">→</span></p>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- ── Period filter ────────────────────────────────────────── -->
+    <form method="get" class="flex flex-wrap items-center gap-2" aria-label="Analytics period">
+        <div class="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+            {% for key, label in periods %}{% if key != 'custom' %}
+            <a href="?period={{ key }}" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors {% if period == key %}bg-slate-900 text-white{% else %}text-slate-600 hover:bg-slate-100{% endif %}" {% if period == key %}aria-current="true"{% endif %}>{{ label }}</a>
+            {% endif %}{% endfor %}
+        </div>
+        <div class="inline-flex items-center gap-1.5 rounded-xl border bg-white px-2 py-1 shadow-sm {% if period == 'custom' %}border-slate-900{% else %}border-slate-200{% endif %}">
+            <input type="hidden" name="period" value="custom">
+            <input type="date" name="from" value="{{ start|date:'Y-m-d' }}" class="text-xs text-slate-700 border-0 bg-transparent focus:outline-none" aria-label="From">
+            <span class="text-slate-300">→</span>
+            <input type="date" name="to" value="{{ end|date:'Y-m-d' }}" class="text-xs text-slate-700 border-0 bg-transparent focus:outline-none" aria-label="To">
+            <button type="submit" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700">Apply</button>
+        </div>
+        <span class="text-xs text-slate-500">{{ start|date:"d M Y" }}{% if start != end %} – {{ end|date:"d M Y" }}{% endif %} · <a href="{{ period_list_url }}" class="text-emerald-700 hover:underline">see these orders</a></span>
+    </form>
+
+    <!-- ── Period KPIs ──────────────────────────────────────────── -->
+    <section class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3" aria-label="Period figures">
+        {% for k in kpis %}
+        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <p class="text-xs font-medium text-slate-500">{{ k.label }}</p>
+            <p class="text-xl font-bold text-slate-900 mt-1">{{ k.value }}</p>
+            <p class="text-[11px] mt-1 {% if k.good is True %}text-emerald-700{% elif k.good is False %}text-rose-700{% else %}text-slate-400{% endif %}">
+                {% if k.delta %}{% if k.delta > 0 %}▲{% else %}▼{% endif %} {{ k.delta_display }}{% else %}No change{% endif %}
+                <span class="text-slate-400">vs previous</span>
+            </p>
+        </div>
+        {% endfor %}
+    </section>
+
+    <!-- ── Trend ────────────────────────────────────────────────── -->
+    <section class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
+        <div class="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+            <div>
+                <h2 class="text-sm font-semibold text-slate-800">Bookings per {% if trend.weekly %}week{% else %}day{% endif %}</h2>
+                <p class="text-xs text-slate-500">{{ stats.total }} created · {{ stats.by_phone }} by phone ({% widthratio stats.by_phone stats.total|default:1 100 %}%)</p>
+            </div>
+            <div class="flex items-center gap-4 text-xs text-slate-600" aria-hidden="true">
+                <span class="inline-flex items-center gap-1.5"><span class="viz-key" style="background:var(--series-1)"></span>Instant</span>
+                <span class="inline-flex items-center gap-1.5"><span class="viz-key" style="background:var(--series-2)"></span>Scheduled</span>
+            </div>
+        </div>
+
+        {% if trend.has_data %}
+        <div class="viz-plot" role="img" aria-label="Stacked columns of instant and scheduled bookings per {% if trend.weekly %}week{% else %}day{% endif %}; values in the table below">
+            {% for t in trend.ticks %}
+            <div class="viz-grid {% if t.value == 0 %}is-base{% endif %}" style="bottom: {{ t.bottom }}%"></div>
+            <span class="viz-tick" style="bottom: {{ t.bottom }}%; transform: translateY(50%)">{{ t.value }}</span>
+            {% endfor %}
+            <div class="viz-cols" id="trend-cols">
+                {% for b in trend.buckets %}
+                <div class="viz-slot" tabindex="0"
+                     data-label="{{ b.label }}" data-instant="{{ b.instant }}" data-scheduled="{{ b.scheduled }}" data-total="{{ b.total }}"
+                     aria-label="{{ b.label }}: {{ b.instant }} instant, {{ b.scheduled }} scheduled">
+                    {% if b.total %}
+                    <div class="viz-stack" style="height: {{ b.height }}%">
+                        {% if b.instant %}<div class="viz-seg-1" style="flex: {{ b.instant }} 1 0"></div>{% endif %}
+                        {% if b.scheduled %}<div class="viz-seg-2" style="flex: {{ b.scheduled }} 1 0"></div>{% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="viz-xlabels" aria-hidden="true">
+            {% for b in trend.buckets %}<span>{% if b.show_label %}{{ b.short_label }}{% endif %}</span>{% endfor %}
+        </div>
+        <details class="mt-4">
+            <summary class="text-xs font-semibold text-slate-500 cursor-pointer hover:text-slate-700">View as table</summary>
+            <div class="overflow-x-auto mt-2 max-h-64 overflow-y-auto">
+                <table class="w-full text-xs">
+                    <thead><tr class="text-slate-500 text-left"><th class="py-1.5 pr-4 font-semibold">{% if trend.weekly %}Week{% else %}Day{% endif %}</th><th class="py-1.5 pr-4 font-semibold text-right">Instant</th><th class="py-1.5 pr-4 font-semibold text-right">Scheduled</th><th class="py-1.5 font-semibold text-right">Total</th></tr></thead>
+                    <tbody class="divide-y divide-slate-100 tabular-nums">
+                        {% for b in trend.buckets %}
+                        <tr><td class="py-1.5 pr-4 text-slate-700">{{ b.label }}</td><td class="py-1.5 pr-4 text-right">{{ b.instant }}</td><td class="py-1.5 pr-4 text-right">{{ b.scheduled }}</td><td class="py-1.5 text-right font-semibold text-slate-800">{{ b.total }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </details>
+        {% else %}
+        <p class="py-12 text-center text-sm text-slate-500">No bookings were created in this period.</p>
+        {% endif %}
+    </section>
+
+    <!-- ── Breakdowns ───────────────────────────────────────────── -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <section class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
+            <h2 class="text-sm font-semibold text-slate-800">By status</h2>
+            <p class="text-xs text-slate-500 mb-4">Current status of orders created in this period</p>
+            {% if statuses %}
+            <ul class="space-y-2.5">
+                {% for row in statuses %}
+                <li>
+                    <a href="{{ row.url }}" class="grid grid-cols-[110px_1fr] items-center gap-3 group">
+                        <span class="text-xs text-slate-600 group-hover:text-slate-900 truncate">{{ row.label }}</span>
+                        <span class="flex items-center gap-2 viz-bar-track">
+                            <span class="viz-bar" style="width: calc({{ row.width }}% - 40px)"></span>
+                            <span class="text-xs font-semibold text-slate-800 tabular-nums">{{ row.count }}</span>
+                        </span>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}<p class="text-sm text-slate-500 py-6 text-center">No orders in this period.</p>{% endif %}
+        </section>
+
+        <section class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
+            <h2 class="text-sm font-semibold text-slate-800">Top categories</h2>
+            <p class="text-xs text-slate-500 mb-4">Orders created in this period</p>
+            {% if categories %}
+            <ul class="space-y-2.5">
+                {% for row in categories %}
+                <li>
+                    <a href="{{ row.url }}" class="grid grid-cols-[110px_1fr] items-center gap-3 group">
+                        <span class="text-xs text-slate-600 group-hover:text-slate-900 truncate" title="{{ row.label }}">{{ row.label }}</span>
+                        <span class="flex items-center gap-2 viz-bar-track">
+                            <span class="viz-bar" style="width: calc({{ row.width }}% - 40px)"></span>
+                            <span class="text-xs font-semibold text-slate-800 tabular-nums">{{ row.count }}</span>
+                        </span>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}<p class="text-sm text-slate-500 py-6 text-center">No orders in this period.</p>{% endif %}
+        </section>
+    </div>
+
+    <!-- ── Recent ───────────────────────────────────────────────── -->
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-slate-800">Latest orders</h2>
+            <a href="{% url 'adminpanel:bookings-list' %}" class="text-xs font-semibold text-emerald-700 hover:underline">All orders →</a>
+        </div>
+        {% if recent_bookings %}
+        <ul class="divide-y divide-slate-100">
+            {% for b in recent_bookings %}
+            <li>
+                <a href="{% url 'adminpanel:booking-detail' b.booking_id %}" class="flex items-center gap-3 px-5 py-3 hover:bg-slate-50">
+                    <span class="font-mono text-xs font-semibold text-slate-700 w-28 shrink-0">{{ b.booking_id }}</span>
+                    <span class="flex-1 min-w-0">
+                        <span class="block text-sm text-slate-800 truncate">{{ b.customer.customer_profile.full_name|default:b.customer.phone_number }} · {{ b.category.name|default:"—" }}</span>
+                        <span class="block text-xs text-slate-400">{% if b.booking_type == 'INSTANT' %}⚡ Instant{% else %}📅 Scheduled{% endif %}{% if b.created_by_agent_id %} · 📞 Phone{% endif %} · {{ b.created_at|timesince }} ago</span>
+                    </span>
+                    {% include 'adminpanel/includes/booking_status_badge.html' with status=b.status label=b.get_status_display %}
+                    <span class="hidden sm:block text-sm font-semibold text-slate-800 w-20 text-right">₹{{ b.total_amount|floatformat:0 }}</span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="px-5 py-10 text-center text-sm text-slate-500">No bookings yet. Use <strong>⚡ Quick Book</strong> to place one from a call.</p>
+        {% endif %}
+    </section>
+</div>
+
+<div class="viz-tooltip" id="viz-tooltip" hidden role="tooltip"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const cols = document.getElementById('trend-cols');
+    const tip = document.getElementById('viz-tooltip');
+    if (!cols) return;
+
+    function row(color, value, label) {
+        const div = document.createElement('div');
+        div.style.marginTop = '3px';
+        const key = document.createElement('span');
+        key.className = 'line-key';
+        key.style.background = color;
+        const strong = document.createElement('strong');
+        strong.textContent = value;
+        div.append(key, strong, document.createTextNode(' ' + label));
+        return div;
+    }
+
+    function show(slot) {
+        const d = slot.dataset;
+        tip.replaceChildren();
+        const title = document.createElement('div');
+        title.style.color = 'var(--text-primary)';
+        title.style.fontWeight = '600';
+        title.textContent = d.label;
+        tip.append(title,
+            row('var(--series-1)', d.instant, 'instant'),
+            row('var(--series-2)', d.scheduled, 'scheduled'),
+            row('transparent', d.total, 'total'));
+        tip.hidden = false;
+        const r = slot.getBoundingClientRect();
+        const t = tip.getBoundingClientRect();
+        const left = Math.min(Math.max(8, r.left + r.width / 2 - t.width / 2), window.innerWidth - t.width - 8);
+        tip.style.left = left + 'px';
+        tip.style.top = Math.max(8, r.top - t.height - 8) + 'px';
+    }
+    function hide() { tip.hidden = true; }
+
+    cols.addEventListener('pointerover', (e) => { const s = e.target.closest('.viz-slot'); if (s) show(s); });
+    cols.addEventListener('pointerleave', hide);
+    cols.addEventListener('focusin', (e) => { const s = e.target.closest('.viz-slot'); if (s) show(s); });
+    cols.addEventListener('focusout', hide);
+    window.addEventListener('scroll', hide, { passive: true });
+})();
+</script>
+{% endblock %}

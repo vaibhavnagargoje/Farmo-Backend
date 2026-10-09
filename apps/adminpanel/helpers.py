@@ -1,8 +1,37 @@
-"""Shared registration presentation helpers for the admin panel."""
+"""Shared helpers for the admin panel: registration progress and phone lookup."""
+
+import re
 
 from django.urls import reverse
 from labor_services.models import LaborDetails
 from partners.models import PartnerProfile
+from users.models import User
+
+
+def normalize_phone(raw):
+    """
+    The 10-digit Indian mobile number the app stores (e.g. "9876543210"),
+    accepting "+91 98765 43210", "09876543210" and similar. "" if invalid.
+    """
+    digits = re.sub(r"\D", "", raw or "")
+    if len(digits) == 12 and digits.startswith("91"):
+        digits = digits[2:]
+    elif len(digits) == 11 and digits.startswith("0"):
+        digits = digits[1:]
+    return digits if len(digits) == 10 and digits[0] in "6789" else ""
+
+
+def find_user_by_phone(phone):
+    """
+    The user with this 10-digit number in any stored format ("9876543210",
+    "+919876543210", ...), preferring an exact match. None if there is none.
+    """
+    candidates = [
+        user for user in User.objects.filter(phone_number__endswith=phone)
+        if normalize_phone(user.phone_number) == phone
+    ]
+    candidates.sort(key=lambda user: (user.phone_number != phone, user.date_joined))
+    return candidates[0] if candidates else None
 
 
 def _get_registration_progress(registration):

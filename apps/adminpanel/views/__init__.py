@@ -26,9 +26,6 @@ from .map import (
     map_view,
     map_data,
     map_message_draft,
-    map_assign_partner,
-    map_cancel_booking,
-    map_complete_booking,
 )
 from .users import (
     users_list,
@@ -55,9 +52,24 @@ from .availability import (
     agent_worker_calendar,
     agent_toggle_busy_day,
     agent_workers_by_date,
+    agent_worker_booking_action,
 )
 from .bookings import (
-    agent_worker_booking_action,
+    bookings_overview,
+    bookings_list,
+    bookings_export,
+    booking_detail,
+)
+from .booking_actions import (
+    booking_assign_partner,
+    booking_cancel,
+    booking_complete,
+    booking_rebroadcast,
+)
+from .quick_book import (
+    quick_book_user_search,
+    quick_book_categories,
+    quick_book_create,
 )
 
 __all__ = [
@@ -78,9 +90,6 @@ __all__ = [
     'map_view',
     'map_data',
     'map_message_draft',
-    'map_assign_partner',
-    'map_cancel_booking',
-    'map_complete_booking',
     'users_list',
     'add_user',
     '_build_user_detail_context',
@@ -100,4 +109,15 @@ __all__ = [
     'agent_toggle_busy_day',
     'agent_workers_by_date',
     'agent_worker_booking_action',
+    'bookings_overview',
+    'bookings_list',
+    'bookings_export',
+    'booking_detail',
+    'booking_assign_partner',
+    'booking_cancel',
+    'booking_complete',
+    'booking_rebroadcast',
+    'quick_book_user_search',
+    'quick_book_categories',
+    'quick_book_create',
 ]

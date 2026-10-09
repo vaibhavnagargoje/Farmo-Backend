@@ -4,8 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}Farmo Admin{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{% static 'adminpanel/css/quick_book.css' %}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -15,6 +17,13 @@
         .sidebar-link:hover { background: rgba(255,255,255,0.08); }
         .sidebar-link.active { background: rgba(34,197,94,0.15); color: #4ade80; }
         .sidebar-link.active .sidebar-icon { color: #4ade80; }
+        .nav-group > summary { list-style: none; cursor: pointer; }
+        .nav-group > summary::-webkit-details-marker { display: none; }
+        .nav-group .nav-chevron { transition: transform 0.15s ease; }
+        .nav-group[open] .nav-chevron { transform: rotate(90deg); }
+        .sidebar-sublink { display: block; padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; color: #94a3b8; transition: all 0.15s ease; }
+        .sidebar-sublink:hover { color: #e2e8f0; background: rgba(255,255,255,0.06); }
+        .sidebar-sublink.active { color: #4ade80; background: rgba(34,197,94,0.12); font-weight: 600; }
         /* Scrollbar styling */
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -121,14 +130,25 @@
             </a>
 
 
-            <a href="#"
-               class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-500 text-sm font-medium cursor-not-allowed opacity-60">
-                <svg class="sidebar-icon w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                </svg>
-                Bookings
-                <span class="ml-auto text-xs bg-slate-700 text-slate-400 px-2 py-0.5 rounded-full">Soon</span>
-            </a>
+            {% with url_name=request.resolver_match.url_name %}
+            <details class="nav-group" {% block nav_bookings_open %}{% endblock %}>
+                <summary class="sidebar-link {% block nav_bookings %}{% endblock %} flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 text-sm font-medium">
+                    <svg class="sidebar-icon w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                    <span class="flex-1">Bookings</span>
+                    <svg class="nav-chevron w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                    </svg>
+                </summary>
+                <div class="mt-1 ml-5 pl-3 border-l border-slate-700/60 space-y-0.5">
+                    <a href="{% url 'adminpanel:bookings' %}" class="sidebar-sublink {% if url_name == 'bookings' %}active{% endif %}">Overview</a>
+                    <a href="{% url 'adminpanel:bookings-list' %}" class="sidebar-sublink {% if url_name == 'bookings-list' %}active{% endif %}">All orders</a>
+                    <a href="{% url 'adminpanel:bookings-instant' %}" class="sidebar-sublink {% if url_name == 'bookings-instant' %}active{% endif %}">Instant</a>
+                    <a href="{% url 'adminpanel:bookings-scheduled' %}" class="sidebar-sublink {% if url_name == 'bookings-scheduled' %}active{% endif %}">Scheduled</a>
+                </div>
+            </details>
+            {% endwith %}
         </nav>
 
         <!-- Bottom: admin info + logout -->
@@ -173,6 +193,13 @@
 
             <!-- Right side actions -->
             <div class="flex items-center gap-2 shrink-0">
+                <button type="button" onclick="QuickBook.open()"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer">
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                    </svg>
+                    <span>Quick Book</span>
+                </button>
                 {% block topbar_actions %}{% endblock %}
             </div>
         </header>
@@ -209,5 +236,9 @@ function closeSidebar() {
 }
 </script>
 {% block extra_js %}{% endblock %}
+
+{% include 'adminpanel/includes/quick_book_panel.html' %}
+<script src="{% static 'adminpanel/js/location_picker.js' %}"></script>
+<script src="{% static 'adminpanel/js/quick_book.js' %}"></script>
 </body>
 </html>

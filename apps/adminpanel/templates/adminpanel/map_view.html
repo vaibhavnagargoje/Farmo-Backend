@@ -20,9 +20,9 @@
 <div id="mapConfig" hidden
      data-data-url="{% url 'adminpanel:map-data' %}"
      data-message-url="{% url 'adminpanel:map-message-draft' %}"
-     data-assign-url="{% url 'adminpanel:map-assign-partner' %}"
-     data-cancel-url="{% url 'adminpanel:map-cancel-booking' %}"
-     data-complete-url="{% url 'adminpanel:map-complete-booking' %}"></div>
+     data-assign-url="{% url 'adminpanel:booking-assign' %}"
+     data-cancel-url="{% url 'adminpanel:booking-cancel' %}"
+     data-complete-url="{% url 'adminpanel:booking-complete' %}"></div>
 {{ partners_data|json_script:"partners-data" }}
 {{ bookings_data|json_script:"bookings-data" }}
 
@@ -585,7 +585,7 @@
 <script src="{% static 'adminpanel/js/map_view.js' %}"></script>
 {% if google_maps_key %}
 <script async defer
-    src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_key }}&callback=initFarmoMap">
+    src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_key }}&libraries=places&callback=initFarmoMap">
 </script>
 {% endif %}
 {% endblock %}

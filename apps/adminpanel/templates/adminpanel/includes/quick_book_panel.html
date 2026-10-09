@@ -1,0 +1,177 @@
+<!-- ═══════════════════════════════════════════════════════════════
+     Quick Book slide-over (included in base.html, opened from the top bar)
+     Steps: 1 Customer → 2 Location → 3 Machinery & work → 4 Review
+     ═══════════════════════════════════════════════════════════════ -->
+
+<div id="qb-overlay" onclick="QuickBook.close()"></div>
+
+<div id="qb-panel" role="dialog" aria-modal="true" aria-labelledby="qb-title" aria-hidden="true"
+     data-search-url="{% url 'adminpanel:quick-book-user-search' %}"
+     data-categories-url="{% url 'adminpanel:quick-book-categories' %}"
+     data-create-url="{% url 'adminpanel:quick-book-create' %}">
+
+    <!-- ── Header ───────────────────────────────────────────────── -->
+    <div class="qb-header">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <div class="qb-logo">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            </div>
+            <div>
+                <h2 id="qb-title" class="qb-title">Quick Book</h2>
+                <p class="qb-subtitle" id="qb-subtitle">Instant booking from a phone call</p>
+            </div>
+        </div>
+        <button type="button" onclick="QuickBook.close()" class="qb-close" aria-label="Close Quick Book">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+    </div>
+
+    <div class="qb-progress-track"><div class="qb-progress-fill" id="qb-progress" style="width:25%"></div></div>
+
+    <ol class="qb-stepper" id="qb-stepper" aria-label="Steps">
+        <li class="active" data-step="1"><span>1</span>Customer</li>
+        <li data-step="2"><span>2</span>Location</li>
+        <li data-step="3"><span>3</span>Machinery</li>
+        <li data-step="4"><span>4</span>Confirm</li>
+    </ol>
+
+    <!-- ══ STEP 1 — Customer ══════════════════════════════════════ -->
+    <section class="qb-step active" id="qb-step-1" aria-label="Customer">
+        <div class="qb-search-wrap">
+            <svg class="qb-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input type="text" id="qb-search" class="qb-search-input" placeholder="Caller's phone number or name…" autocomplete="off" maxlength="40" aria-label="Search customer by phone or name">
+        </div>
+
+        <div id="qb-search-results" class="qb-list" aria-live="polite"></div>
+        <div id="qb-search-loading" class="qb-loading" hidden><div class="qb-spinner"></div></div>
+
+        <div id="qb-new-toggle-wrap" hidden>
+            <div class="qb-divider"><span>or</span></div>
+            <button type="button" id="qb-new-toggle" class="qb-dashed-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                New customer
+            </button>
+        </div>
+
+        <div id="qb-new-form" class="qb-card" hidden>
+            <p class="qb-card-title">New customer</p>
+            <label class="qb-label" for="qb-new-phone">Mobile number *</label>
+            <input type="tel" class="qb-input" id="qb-new-phone" placeholder="98765 43210" maxlength="16" autocomplete="off">
+            <label class="qb-label" for="qb-new-name" style="margin-top:10px;">Full name</label>
+            <input type="text" class="qb-input" id="qb-new-name" placeholder="As the caller says it" maxlength="255" autocomplete="off">
+            <p class="qb-hint">An account is created when you confirm the booking. The caller can later log in to the app with this number.</p>
+        </div>
+
+        <div class="qb-error" id="qb-step1-error" role="alert"><span></span></div>
+    </section>
+
+    <!-- ══ STEP 2 — Location ══════════════════════════════════════ -->
+    <section class="qb-step" id="qb-step-2" aria-label="Job location">
+        <div class="farmo-location-picker" id="qb-location" data-lp-lazy data-maps-key="{{ google_maps_key }}">
+            <input type="text" data-lp="search" class="qb-input" placeholder="Search village, taluka or pin code…" autocomplete="off" aria-label="Search location">
+            <div data-lp="map" class="qb-map"></div>
+            <p class="qb-hint">Drag the pin or tap the map to mark the exact field.</p>
+
+            <label class="qb-label" for="qb-address" style="margin-top:12px;">Service address *</label>
+            <textarea data-lp="address" id="qb-address" class="qb-input" rows="2" placeholder="Village, taluka, district, landmark…"></textarea>
+
+            <div class="qb-grid-2" style="margin-top:10px;">
+                <div>
+                    <label class="qb-label" for="qb-lat">Latitude</label>
+                    <input type="text" data-lp="lat" id="qb-lat" class="qb-input qb-mono" inputmode="decimal" placeholder="19.997500">
+                </div>
+                <div>
+                    <label class="qb-label" for="qb-lng">Longitude</label>
+                    <input type="text" data-lp="lng" id="qb-lng" class="qb-input qb-mono" inputmode="decimal" placeholder="73.789800">
+                </div>
+            </div>
+            <div data-lp="status" style="margin-top:8px;"></div>
+        </div>
+
+        <label class="qb-check" id="qb-save-location-wrap" hidden>
+            <input type="checkbox" id="qb-save-location">
+            <span>Also save as this customer's address</span>
+        </label>
+
+        <div class="qb-error" id="qb-step2-error" role="alert"><span></span></div>
+    </section>
+
+    <!-- ══ STEP 3 — Machinery & work ══════════════════════════════ -->
+    <section class="qb-step" id="qb-step-3" aria-label="Machinery and work">
+        <p class="qb-section-label">Machinery</p>
+        <div id="qb-categories" class="qb-list" role="radiogroup" aria-label="Category"></div>
+        <div id="qb-cat-loading" class="qb-loading" hidden><div class="qb-spinner"></div></div>
+
+        <div id="qb-job" hidden>
+            <p class="qb-section-label" style="margin-top:18px;">Work details</p>
+            <div class="qb-grid-2">
+                <div>
+                    <label class="qb-label" for="qb-quantity">Quantity *</label>
+                    <div class="qb-addon">
+                        <input type="number" class="qb-input" id="qb-quantity" value="1" min="1" step="1" inputmode="numeric">
+                        <span id="qb-unit-label">Per Hour</span>
+                    </div>
+                </div>
+                <div>
+                    <label class="qb-label" for="qb-unit-price">Unit price (₹) *</label>
+                    <input type="number" class="qb-input" id="qb-unit-price" min="1" step="1" inputmode="decimal">
+                    <p class="qb-hint" id="qb-price-hint"></p>
+                </div>
+            </div>
+
+            <div class="qb-total">
+                <span>Estimated total</span>
+                <strong id="qb-total">₹0</strong>
+            </div>
+
+            <label class="qb-label" for="qb-date">Work date</label>
+            <input type="date" class="qb-input" id="qb-date">
+
+            <label class="qb-label" for="qb-note" style="margin-top:12px;">Work description</label>
+            <textarea class="qb-input" id="qb-note" rows="3" placeholder="Crop, field size, soil, access road, preferred time…"></textarea>
+        </div>
+
+        <div class="qb-error" id="qb-step3-error" role="alert"><span></span></div>
+    </section>
+
+    <!-- ══ STEP 4 — Review ════════════════════════════════════════ -->
+    <section class="qb-step" id="qb-step-4" aria-label="Review and confirm" style="position:relative;">
+        <div class="qb-review-card" id="qb-review"></div>
+        <div id="qb-reach" class="qb-reach"></div>
+        <div class="qb-error" id="qb-step4-error" role="alert"><span></span></div>
+        <div class="qb-loading-overlay" id="qb-submit-loading" hidden>
+            <div style="text-align:center;">
+                <div class="qb-spinner" style="margin:0 auto;width:32px;height:32px;border-width:4px;"></div>
+                <p style="font-size:14px;color:#64748b;margin-top:10px;font-weight:500;">Placing booking…</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══ SUCCESS ════════════════════════════════════════════════ -->
+    <section class="qb-success" id="qb-success" aria-live="polite">
+        <div class="qb-success-check">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <h3 class="qb-success-title">Booking placed</h3>
+        <p class="qb-success-id" id="qb-success-id"></p>
+        <div class="qb-success-box">
+            <p>Order number</p>
+            <strong id="qb-success-order"></strong>
+        </div>
+        <p class="qb-success-reach" id="qb-success-reach"></p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+            <a href="#" id="qb-success-link" class="qb-btn qb-btn-secondary">View booking</a>
+            <button type="button" onclick="QuickBook.reset()" class="qb-btn qb-btn-secondary">New booking</button>
+            <button type="button" onclick="QuickBook.close()" class="qb-btn qb-btn-primary">Done</button>
+        </div>
+    </section>
+
+    <!-- ── Footer ───────────────────────────────────────────────── -->
+    <div class="qb-footer" id="qb-footer">
+        <button type="button" id="qb-back-btn" class="qb-btn qb-btn-secondary" onclick="QuickBook.prev()" style="visibility:hidden;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+            Back
+        </button>
+        <button type="button" id="qb-next-btn" class="qb-btn qb-btn-primary" onclick="QuickBook.next()">Next</button>
+    </div>
+</div>

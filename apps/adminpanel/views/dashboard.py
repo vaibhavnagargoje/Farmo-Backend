@@ -1,4 +1,4 @@
-"""Dashboard summary cards. Availability and bookings live in availability.py."""
+"""Dashboard summary cards; detailed booking analytics live in the Bookings section."""
 
 from django.contrib.auth.decorators import user_passes_test
 from django.shortcuts import render
@@ -9,6 +9,7 @@ from partners.models import PartnerProfile
 from services.models import Service
 from users.models import User
 
+from ..booking_analytics import live_tiles
 from ..permissions import is_agent
 
 
@@ -29,4 +30,5 @@ def dashboard(request):
         ).count(),
         "active_partners": active_partners.count(),
         "available_today": active_partners.exclude(pk__in=busy_today).count(),
+        "booking_tiles": live_tiles(),
     })

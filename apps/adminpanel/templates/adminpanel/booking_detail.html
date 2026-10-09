@@ -1,0 +1,283 @@
+{% extends 'adminpanel/base.html' %}
+{% block title %}{{ booking.booking_id }} | Farmo Admin{% endblock %}
+{% block nav_bookings %}active{% endblock %}
+{% block nav_bookings_open %}open{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'adminpanel:bookings' %}" class="hover:text-slate-800">Bookings</a>
+<span class="text-slate-300">/</span>
+<a href="{% if booking.booking_type == 'INSTANT' %}{% url 'adminpanel:bookings-instant' %}{% else %}{% url 'adminpanel:bookings-scheduled' %}{% endif %}" class="hover:text-slate-800">{{ booking.get_booking_type_display }}</a>
+<span class="text-slate-300">/</span>
+<span class="font-semibold text-slate-800 font-mono">{{ booking.booking_id }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-4"
+     id="booking-actions"
+     data-booking-id="{{ booking.booking_id }}"
+     data-assign-url="{% url 'adminpanel:booking-assign' %}"
+     data-cancel-url="{% url 'adminpanel:booking-cancel' %}"
+     data-complete-url="{% url 'adminpanel:booking-complete' %}"
+     data-rebroadcast-url="{% url 'adminpanel:booking-rebroadcast' %}">
+
+    <!-- ── Header ───────────────────────────────────────────────── -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col md:flex-row md:items-center gap-4">
+        <div class="flex-1 min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+                <h1 class="font-mono text-lg font-bold text-slate-900">{{ booking.booking_id }}</h1>
+                {% include 'adminpanel/includes/booking_status_badge.html' with status=booking.status label=booking.get_status_display %}
+                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full border {% if booking.booking_type == 'INSTANT' %}bg-amber-50 text-amber-800 border-amber-200{% else %}bg-blue-50 text-blue-800 border-blue-200{% endif %}">
+                    {% if booking.booking_type == 'INSTANT' %}⚡ Instant{% else %}📅 Scheduled{% endif %}
+                </span>
+                {% if booking.created_by_agent_id %}
+                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-violet-50 text-violet-800 border-violet-200">📞 Booked by phone</span>
+                {% endif %}
+            </div>
+            <p class="text-xs text-slate-500 mt-1">
+                {% if booking.order_number %}Order {{ booking.order_number }} · {% endif %}Created {{ booking.created_at|date:"d M Y, h:i A" }}
+            </p>
+            {% if booking.status == 'SEARCHING' and not booking.is_expired %}
+            <p class="text-xs text-amber-700 mt-1">Searching for a provider until {{ booking.expires_at|date:"h:i A" }}.</p>
+            {% elif can_rebroadcast %}
+            <p class="text-xs text-rose-700 mt-1 font-medium">No provider accepted in time. Retry the search or assign one manually after retrying.</p>
+            {% endif %}
+        </div>
+        <div class="flex flex-wrap gap-2">
+            {% if can_rebroadcast %}
+            <button type="button" data-action="rebroadcast" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white shadow-sm">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Retry search
+            </button>
+            {% endif %}
+            {% if can_complete %}
+            <button type="button" data-action="complete" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">Mark completed</button>
+            {% endif %}
+            {% if can_cancel %}
+            <button type="button" data-action="cancel" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold border border-rose-200 text-rose-700 bg-white hover:bg-rose-50">Cancel order</button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div id="action-notice" class="hidden rounded-xl border px-4 py-3 text-sm" role="status" aria-live="polite"></div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+        <!-- ── Left: job, assignment, broadcast ─────────────────── -->
+        <div class="lg:col-span-2 space-y-4">
+
+            <section class="bg-white rounded-2xl border border-slate-200 shadow-sm">
+                <h2 class="px-5 py-3.5 border-b border-slate-100 text-sm font-semibold text-slate-800">Job</h2>
+                <dl class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3 p-5 text-sm">
+                    <div><dt class="text-xs text-slate-500">Category</dt><dd class="font-medium text-slate-800">{{ booking.category.name|default:"—" }}</dd></div>
+                    <div><dt class="text-xs text-slate-500">Machine / service</dt><dd class="font-medium text-slate-800">{{ booking.service.title|default:"Not yet assigned" }}</dd></div>
+                    <div><dt class="text-xs text-slate-500">Quantity</dt><dd class="font-medium text-slate-800">{{ booking.quantity }} · {{ unit_label }}</dd></div>
+                    <div><dt class="text-xs text-slate-500">Unit price</dt>
+                        <dd class="font-medium text-slate-800">₹{{ booking.unit_price|floatformat:2 }}
+                            {% if booking.original_unit_price is not None %}<span class="block text-[11px] font-normal text-violet-700">Agent price · system ₹{{ booking.original_unit_price|floatformat:2 }}</span>{% endif %}
+                        </dd></div>
+                    <div><dt class="text-xs text-slate-500">Total</dt><dd class="font-bold text-slate-900">₹{{ booking.total_amount|floatformat:2 }}</dd></div>
+                    <div><dt class="text-xs text-slate-500">Payment</dt><dd class="font-medium text-slate-800">{{ booking.get_payment_status_display }}</dd></div>
+                    <div><dt class="text-xs text-slate-500">Work date</dt><dd class="font-medium text-slate-800">{{ booking.scheduled_date|date:"D, d M Y"|default:"—" }}{% if booking.scheduled_time %} · {{ booking.scheduled_time|time:"h:i A" }}{% endif %}</dd></div>
+                    <div class="col-span-2">
+                        <dt class="text-xs text-slate-500">Address</dt>
+                        <dd class="text-slate-800">{{ booking.address|default:"—" }}
+                            {% if maps_url %}<a href="{{ maps_url }}" target="_blank" rel="noopener" class="block text-xs text-emerald-700 hover:underline mt-0.5">Open in Google Maps ↗</a>
+                            {% else %}<span class="block text-xs text-rose-600 mt-0.5">No map location: this order can't be matched to providers.</span>{% endif %}
+                        </dd>
+                    </div>
+                    {% if booking.note %}
+                    <div class="col-span-2 sm:col-span-3"><dt class="text-xs text-slate-500">Work description</dt><dd class="text-slate-800 whitespace-pre-line">{{ booking.note }}</dd></div>
+                    {% endif %}
+                    {% if booking.cancellation_reason %}
+                    <div class="col-span-2 sm:col-span-3"><dt class="text-xs text-slate-500">Cancellation reason</dt><dd class="text-rose-700">{{ booking.cancellation_reason }}</dd></div>
+                    {% endif %}
+                </dl>
+            </section>
+
+            <section class="bg-white rounded-2xl border border-slate-200 shadow-sm">
+                <h2 class="px-5 py-3.5 border-b border-slate-100 text-sm font-semibold text-slate-800">Provider</h2>
+                <div class="p-5 space-y-4">
+                    {% if booking.provider %}
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <p class="font-semibold text-slate-900">{{ booking.provider.business_name|default:booking.provider.user.phone_number }}</p>
+                            <p class="text-xs text-slate-500"><a href="tel:{{ booking.provider.user.phone_number }}" class="hover:underline">{{ booking.provider.user.phone_number }}</a>{% if booking.assigned_at %} · assigned {{ booking.assigned_at|date:"d M, h:i A" }}{% endif %}</p>
+                        </div>
+                        <a href="{% url 'adminpanel:user-detail' booking.provider.user_id %}" class="text-xs font-semibold text-emerald-700 hover:underline">Profile →</a>
+                    </div>
+                    {% elif not can_assign %}
+                    <p class="text-sm text-slate-500">No provider assigned.</p>
+                    {% endif %}
+
+                    {% if can_assign %}
+                    <div>
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{% if booking.provider %}Reassign to{% else %}Assign a provider{% endif %}</p>
+                        {% if eligible_partners %}
+                        <ul class="divide-y divide-slate-100 border border-slate-100 rounded-xl">
+                            {% for p in eligible_partners %}
+                            {% if p.provider_id != booking.provider_id %}
+                            <li class="flex items-center justify-between gap-3 px-3 py-2.5">
+                                <div class="min-w-0">
+                                    <p class="text-sm font-medium text-slate-800 truncate">{{ p.name }}</p>
+                                    <p class="text-xs text-slate-500">{{ p.phone }}{% if p.distance_km is not None %} · {{ p.distance_km }} km away{% endif %}</p>
+                                </div>
+                                <button type="button" data-action="assign" data-partner-id="{{ p.provider_id }}" data-partner-name="{{ p.name }}"
+                                        class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white">{% if booking.provider %}Reassign{% else %}Assign{% endif %}</button>
+                            </li>
+                            {% endif %}
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p class="text-sm text-slate-500">No eligible provider for this category, location and date.</p>
+                        {% endif %}
+                        {% if other_partners %}
+                        <details class="mt-3">
+                            <summary class="text-xs font-semibold text-slate-500 cursor-pointer hover:text-slate-700">{{ other_partners|length }} other provider{{ other_partners|length|pluralize }} in this category can't take it</summary>
+                            <ul class="mt-2 space-y-1.5">
+                                {% for p in other_partners %}
+                                <li class="text-xs text-slate-600"><span class="font-medium text-slate-700">{{ p.name }}</span>{% if p.distance_km is not None %} ({{ p.distance_km }} km){% endif %}: {{ p.reasons|join:", " }}</li>
+                                {% endfor %}
+                            </ul>
+                        </details>
+                        {% endif %}
+                        <p class="text-[11px] text-slate-400 mt-3">Or compare providers on the <a href="{% url 'adminpanel:map-view' %}" class="text-emerald-700 hover:underline">Map View</a>.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+
+            {% if requests %}
+            <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <h2 class="px-5 py-3.5 border-b border-slate-100 text-sm font-semibold text-slate-800">Providers notified <span class="text-xs font-normal text-slate-400">({{ requests|length }})</span></h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="bg-slate-50 text-[11px] text-slate-500 uppercase tracking-wider">
+                                <th class="text-left px-4 py-2.5 font-semibold">Provider</th>
+                                <th class="text-left px-4 py-2.5 font-semibold">Round</th>
+                                <th class="text-right px-4 py-2.5 font-semibold">Distance</th>
+                                <th class="text-left px-4 py-2.5 font-semibold">Response</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            {% for r in requests %}
+                            <tr>
+                                <td class="px-4 py-2.5">{{ r.provider.business_name|default:r.provider.user.phone_number }}<span class="block text-xs text-slate-400">{{ r.provider.user.phone_number }}</span></td>
+                                <td class="px-4 py-2.5 text-slate-600">{{ r.broadcast_round }}</td>
+                                <td class="px-4 py-2.5 text-right text-slate-600">{% if r.distance_km is not None %}{{ r.distance_km }} km{% else %}—{% endif %}</td>
+                                <td class="px-4 py-2.5 text-slate-600">{{ r.get_status_display }}{% if r.responded_at %}<span class="block text-xs text-slate-400">{{ r.responded_at|date:"d M, h:i A" }}</span>{% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            {% endif %}
+        </div>
+
+        <!-- ── Right: customer, timeline, OTP ───────────────────── -->
+        <div class="space-y-4">
+            <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Customer</h2>
+                <p class="font-semibold text-slate-900">{{ customer_name }}</p>
+                <a href="tel:{{ booking.customer.phone_number }}" class="text-sm text-slate-600 hover:underline">{{ booking.customer.phone_number }}</a>
+                <a href="{% url 'adminpanel:user-detail' booking.customer_id %}" class="block text-xs font-semibold text-emerald-700 hover:underline mt-2">Customer profile →</a>
+            </section>
+
+            <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Timeline</h2>
+                <ol class="relative border-l border-slate-200 ml-1.5 space-y-3">
+                    {% for label, when, who in timeline %}
+                    <li class="ml-4">
+                        <span class="absolute -left-[5px] mt-1.5 w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-white"></span>
+                        <p class="text-sm font-medium text-slate-800">{{ label }}</p>
+                        <p class="text-xs text-slate-500">{{ when|date:"d M Y, h:i A" }}{% if who %} · {{ who }}{% endif %}</p>
+                    </li>
+                    {% endfor %}
+                </ol>
+            </section>
+
+            {% if booking.job_otp or booking.start_job_otp or booking.end_job_otp %}
+            <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Job OTPs</h2>
+                    <button type="button" id="otp-toggle" aria-pressed="false" class="text-xs font-semibold text-emerald-700 hover:underline">Show</button>
+                </div>
+                <dl class="space-y-1.5 text-sm">
+                    {% if booking.job_otp %}<div class="flex justify-between"><dt class="text-slate-500">Job OTP</dt><dd class="font-mono font-semibold otp-value" data-otp="{{ booking.job_otp }}">••••</dd></div>{% endif %}
+                    {% if booking.start_job_otp %}<div class="flex justify-between"><dt class="text-slate-500">Start OTP</dt><dd class="font-mono font-semibold otp-value" data-otp="{{ booking.start_job_otp }}">••••</dd></div>{% endif %}
+                    {% if booking.end_job_otp %}<div class="flex justify-between"><dt class="text-slate-500">End OTP</dt><dd class="font-mono font-semibold otp-value" data-otp="{{ booking.end_job_otp }}">••••</dd></div>{% endif %}
+                </dl>
+                <p class="text-[11px] text-slate-400 mt-2">Share only with the customer after verifying their identity.</p>
+            </section>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const root = document.getElementById('booking-actions');
+    const notice = document.getElementById('action-notice');
+    const csrf = document.querySelector('meta[name="csrf-token"]').content;
+    const bookingId = root.dataset.bookingId;
+
+    function show(message, ok) {
+        notice.textContent = message;
+        notice.className = 'rounded-xl border px-4 py-3 text-sm ' + (ok
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+            : 'border-rose-200 bg-rose-50 text-rose-700');
+    }
+
+    async function post(url, fields, button) {
+        const form = new FormData();
+        form.append('booking_id', bookingId);
+        Object.entries(fields).forEach(([k, v]) => form.append(k, v));
+        if (button) button.disabled = true;
+        try {
+            const resp = await fetch(url, { method: 'POST', body: form, credentials: 'same-origin',
+                                            headers: { 'X-CSRFToken': csrf, Accept: 'application/json' } });
+            const data = await resp.json().catch(() => ({ error: 'Session expired. Reload the page.' }));
+            if (!resp.ok || !data.success) throw new Error(data.error || 'Action failed.');
+            show(data.message || 'Done.', true);
+            setTimeout(() => window.location.reload(), 900);
+        } catch (err) {
+            show(err.message, false);
+            if (button) button.disabled = false;
+        }
+    }
+
+    root.addEventListener('click', (e) => {
+        const button = e.target.closest('[data-action]');
+        if (!button) return;
+        const action = button.dataset.action;
+        if (action === 'rebroadcast') {
+            post(root.dataset.rebroadcastUrl, {}, button);
+        } else if (action === 'cancel') {
+            const reason = window.prompt('Reason for cancelling this order?');
+            if (reason === null) return;
+            post(root.dataset.cancelUrl, { reason: reason.trim() }, button);
+        } else if (action === 'complete') {
+            const otp = window.prompt('Enter the work completion OTP from the customer:');
+            if (otp === null) return;
+            post(root.dataset.completeUrl, { otp: otp.trim() }, button);
+        } else if (action === 'assign') {
+            if (!window.confirm('Assign this order to ' + button.dataset.partnerName + '?')) return;
+            post(root.dataset.assignUrl, { partner_id: button.dataset.partnerId, reassign: '{{ can_reassign|yesno:"true,false" }}' }, button);
+        }
+    });
+
+    const otpToggle = document.getElementById('otp-toggle');
+    if (otpToggle) {
+        otpToggle.addEventListener('click', () => {
+            const reveal = otpToggle.getAttribute('aria-pressed') !== 'true';
+            document.querySelectorAll('.otp-value').forEach(el => { el.textContent = reveal ? el.dataset.otp : '••••'; });
+            otpToggle.setAttribute('aria-pressed', String(reveal));
+            otpToggle.textContent = reveal ? 'Hide' : 'Show';
+        });
+    }
+})();
+</script>
+{% endblock %}

@@ -144,7 +144,7 @@ async function submitCancelBooking() {
     form.append('booking_id', bookingId);
     form.append('reason', reason);
     try {
-        const data = await readJson(await fetch(endpoint('cancelUrl', '/api/v1/admin/map/cancel/'), {
+        const data = await readJson(await fetch(endpoint('cancelUrl', '/api/v1/admin/bookings/actions/cancel/'), {
             method: 'POST',
             headers: { 'X-CSRFToken': CSRF_TOKEN, Accept: 'application/json' },
             body: form,
@@ -206,7 +206,7 @@ async function submitCompleteBooking() {
     form.append('booking_id', bookingId);
     if (otp) form.append('otp', otp);
     try {
-        const data = await readJson(await fetch(endpoint('completeUrl', '/api/v1/admin/map/complete/'), {
+        const data = await readJson(await fetch(endpoint('completeUrl', '/api/v1/admin/bookings/actions/complete/'), {
             method: 'POST',
             headers: { 'X-CSRFToken': CSRF_TOKEN, Accept: 'application/json' },
             body: form,
@@ -750,7 +750,7 @@ async function dispatchPartnerToBooking(booking, partner, serviceId, button, isR
     if (!window.confirm(`Assign ${partner.name} to booking #${booking.booking_id}? This confirms the booking and reserves availability.`)) return;
     button.disabled = true; button.textContent = 'Assigning…'; const form = new FormData(); form.append('booking_id', booking.booking_id); form.append('partner_id', partner.id); if (serviceId) form.append('service_id', serviceId);
     if (isReassign || booking.status === 'CONFIRMED') form.append('reassign', '1');
-    try { const data = await readJson(await fetch(endpoint('assignUrl', '/api/v1/admin/map/assign/'), { method: 'POST', headers: { 'X-CSRFToken': CSRF_TOKEN, Accept: 'application/json' }, body: form, credentials: 'same-origin' })); announce(data.message || 'Provider assigned.'); await refreshMapData(true); }
+    try { const data = await readJson(await fetch(endpoint('assignUrl', '/api/v1/admin/bookings/actions/assign/'), { method: 'POST', headers: { 'X-CSRFToken': CSRF_TOKEN, Accept: 'application/json' }, body: form, credentials: 'same-origin' })); announce(data.message || 'Provider assigned.'); await refreshMapData(true); }
     catch (error) { const alert = document.getElementById('assignAlertWrap'); if (alert) { alert.textContent = error.message; alert.className = 'map-error'; } button.disabled = false; button.textContent = 'Assign provider'; }
 }
 function setUpdatedTime(value) {

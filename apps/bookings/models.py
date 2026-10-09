@@ -51,7 +51,13 @@ class Booking(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, related_name='agent_accepted_bookings',
         null=True, blank=True, help_text="The admin/agent who accepted this on behalf of the provider"
     )
-    
+
+    # 6. Agent who placed the booking for the customer (e.g. from a phone call)
+    created_by_agent = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, related_name='agent_created_bookings',
+        null=True, blank=True, help_text="The admin/agent who placed this booking for the customer"
+    )
+
     # --- JOB DETAILS ---
     booking_id = models.CharField(max_length=20, unique=True, editable=False) 
     order_number = models.CharField(
@@ -109,7 +115,11 @@ class Booking(models.Model):
         default='HOUR',
         help_text="Unit type for pricing — snapshot of the ServicePriceUnit.key at booking time"
     )
-    unit_price = models.DecimalField(max_digits=10, decimal_places=2) 
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    original_unit_price = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text="System price before an agent overrode unit_price; empty when not overridden"
+    )
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     
     # Meta
