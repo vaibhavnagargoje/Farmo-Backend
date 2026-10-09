@@ -1,7 +1,6 @@
 """User listing, registration, detail pages, and account updates."""
 
-from decimal import Decimal
-
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import user_passes_test
 from django.core.paginator import Paginator
@@ -39,6 +38,19 @@ from ..permissions import (
     get_allowed_role_targets,
     is_agent,
 )
+
+
+def _save_user_location(user, data):
+    """Upsert the user's location; skipped when no location value was supplied."""
+    address = (data.get("address") or "").strip()
+    latitude = data.get("latitude")
+    longitude = data.get("longitude")
+    if not (address or latitude is not None or longitude is not None):
+        return
+    UserLocation.objects.update_or_create(
+        user=user,
+        defaults={"address": address, "latitude": latitude, "longitude": longitude},
+    )
 
 
 @user_passes_test(is_agent, login_url="/api/v1/admin/login/")
@@ -125,13 +137,7 @@ def add_user(request):
                 profile.save()
 
                 # 3. Create UserLocation if any location data was provided
-                if data.get("address") or data.get("latitude") or data.get("longitude"):
-                    UserLocation.objects.create(
-                        user=user,
-                        address=data.get("address") or "",
-                        latitude=data.get("latitude"),
-                        longitude=data.get("longitude"),
-                    )
+                _save_user_location(user, data)
 
             messages.success(
                 request,
@@ -145,6 +151,7 @@ def add_user(request):
     return render(request, "adminpanel/add_user.html", {
         "page_title": "Add New User",
         "form": form,
+        "google_maps_key": settings.GOOGLE_MAPS_API_KEY,
     })
 
 
@@ -205,6 +212,7 @@ def user_detail(request, user_id):
 
     if request.method == "POST":
         errors = []
+        previous_role = user.role
         try:
             with transaction.atomic():
                 # ── 1. User Account Fields ────────────────────────────────
@@ -256,31 +264,12 @@ def user_detail(request, user_id):
                         errors.append(f"Personal Profile ({field}): {', '.join(err_list)}")
 
                 # ── 3. User Location ──────────────────────────────────────
-                address_val = request.POST.get("address", "").strip()
-                lat_str = request.POST.get("latitude", "").strip()
-                lng_str = request.POST.get("longitude", "").strip()
-                lat_val = None
-                lng_val = None
-                if lat_str:
-                    try:
-                        lat_val = Decimal(lat_str)
-                    except Exception:
-                        errors.append("Invalid latitude value.")
-                if lng_str:
-                    try:
-                        lng_val = Decimal(lng_str)
-                    except Exception:
-                        errors.append("Invalid longitude value.")
-
-                if address_val or lat_val is not None or lng_val is not None:
-                    UserLocation.objects.update_or_create(
-                        user=user,
-                        defaults={
-                            "address": address_val,
-                            "latitude": lat_val,
-                            "longitude": lng_val,
-                        },
-                    )
+                location_form = UserLocationForm(request.POST)
+                if location_form.is_valid():
+                    _save_user_location(user, location_form.cleaned_data)
+                else:
+                    for field, err_list in location_form.errors.items():
+                        errors.append(f"Location ({field}): {', '.join(err_list)}")
 
                 # ── 4. Partner Profile & Specific Details ─────────────────
                 partner_profile = None
@@ -289,22 +278,27 @@ def user_detail(request, user_id):
                 except PartnerProfile.DoesNotExist:
                     pass
 
-                should_save_partner = (user.role == User.Role.PARTNER) or (partner_profile is not None) or bool(request.POST.get("partner_type"))
+                # A new partner profile is created only on explicit registration or a role change to PARTNER.
+                should_save_partner = (
+                    partner_profile is not None
+                    or request.POST.get("register_partner") == "1"
+                    or (user.role == User.Role.PARTNER and previous_role != User.Role.PARTNER)
+                )
 
                 if should_save_partner:
-                    if partner_profile is None:
-                        partner_profile = PartnerProfile(user=user)
-
-                    partner_form = PartnerProfileAdminForm(request.POST, request.FILES, instance=partner_profile)
+                    partner_form = PartnerProfileAdminForm(
+                        request.POST, request.FILES,
+                        instance=partner_profile or PartnerProfile(user=user),
+                    )
                     if partner_form.is_valid():
-                        pp = partner_form.save(commit=False)
-                        pp.user = user
-                        pp.save()
+                        partner_profile = partner_form.save(commit=False)
+                        partner_profile.user = user
+                        partner_profile.save()
+                        p_type = partner_profile.partner_type
                     else:
+                        p_type = None
                         for field, err_list in partner_form.errors.items():
                             errors.append(f"Partner Profile ({field}): {', '.join(err_list)}")
-
-                    p_type = request.POST.get("partner_type") or partner_profile.partner_type
 
                     # Labor Details
                     if p_type == PartnerProfile.PartnerType.LABOR:
@@ -391,6 +385,8 @@ def user_detail(request, user_id):
                 return redirect("adminpanel:user-detail", user_id=user.pk)
 
         except Exception as e:
+            # The rolled-back transaction leaves unsaved objects cached on `user`.
+            user.refresh_from_db()
             messages.error(request, str(e))
 
     ctx = _build_user_detail_context(user)
@@ -428,8 +424,7 @@ def user_detail(request, user_id):
     ctx["can_toggle_active"] = can_toggle_active
 
     # Google Maps API key
-    from django.conf import settings as django_settings
-    ctx["google_maps_key"] = django_settings.GOOGLE_MAPS_API_KEY
+    ctx["google_maps_key"] = settings.GOOGLE_MAPS_API_KEY
 
     return render(request, "adminpanel/user_detail.html", ctx)
 
@@ -498,15 +493,7 @@ def update_user_location(request, user_id):
     user = get_object_or_404(User, pk=user_id)
     form = UserLocationForm(request.POST)
     if form.is_valid():
-        data = form.cleaned_data
-        UserLocation.objects.update_or_create(
-            user=user,
-            defaults={
-                "address": data.get("address") or "",
-                "latitude": data.get("latitude"),
-                "longitude": data.get("longitude"),
-            },
-        )
+        _save_user_location(user, form.cleaned_data)
         messages.success(request, "Location saved.")
     else:
         for err in form.errors.values():

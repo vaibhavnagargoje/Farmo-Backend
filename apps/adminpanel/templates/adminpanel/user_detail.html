@@ -23,23 +23,6 @@
         align-items: center;
         gap: 0.75rem;
     }
-    /* Google Maps search autocomplete dropdown styling */
-    .pac-container {
-        z-index: 10000 !important;
-        border-radius: 12px;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
-        margin-top: 4px;
-        font-family: 'Inter', sans-serif;
-    }
-    .pac-item {
-        padding: 8px 14px;
-        font-size: 13px;
-        cursor: pointer;
-        border-bottom: 1px solid #f1f5f9;
-    }
-    .pac-item:hover { background: #f8fafc; }
-    .pac-item-query { font-weight: 600; color: #0f172a; }
 </style>
 {% endblock %}
 
@@ -200,7 +183,7 @@
     <form method="post" action="{% url 'adminpanel:user-detail' user.id %}" enctype="multipart/form-data" id="user-profile-form" autocomplete="off" novalidate>
         {% csrf_token %}
         <input type="hidden" name="is_active_submitted" value="1">
-        <input type="hidden" name="partner_submitted" value="1">
+        <input type="hidden" name="register_partner" id="register-partner-flag" value="0">
 
         <div class="bg-white border border-slate-200/80 rounded-2xl shadow-sm divide-y divide-slate-100 overflow-hidden">
 
@@ -418,90 +401,9 @@
                             <p class="text-xs text-slate-500">Pinpoint address and coordinates for matching and map dispatch.</p>
                         </div>
                     </div>
-
-                    <!-- GPS Device Button -->
-                    <button type="button" id="btn-device-gps" onclick="detectDeviceLocation()"
-                            class="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 transition-colors shadow-sm">
-                        <svg id="gps-icon-pin" class="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-                        </svg>
-                        <svg id="gps-icon-spinner" class="w-4 h-4 text-emerald-700 animate-spin-fast hidden" fill="none" viewBox="0 0 24 24">
-                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" style="opacity:.25"/>
-                            <path fill="currentColor" style="opacity:.75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                        </svg>
-                        <span id="gps-btn-label">Detect from Device GPS</span>
-                    </button>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                    
-                    <!-- Left: Leaflet Map (7 cols) -->
-                    <div class="lg:col-span-7 space-y-3">
-                        <!-- Search input on map -->
-                        <div class="relative">
-                            <div class="flex gap-2">
-                                <input type="text" id="map-address-search"
-                                       placeholder="Search village, city, taluka, pin code..."
-                                       class="form-input flex-1 text-sm bg-white" autocomplete="off"
-                                       onkeydown="if(event.key==='Enter'){event.preventDefault();searchMapPlace();}">
-                                <button type="button" onclick="searchMapPlace()"
-                                        class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors">
-                                    Search
-                                </button>
-                            </div>
-                            <!-- Search autocomplete results -->
-                            <div id="map-search-results" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden max-h-52 overflow-y-auto" style="z-index:9999;"></div>
-                        </div>
-
-                        <!-- Map canvas -->
-                        <div class="relative rounded-2xl border border-slate-200 overflow-hidden shadow-inner bg-slate-100">
-                            <div id="location-google-map" style="height: 380px; width:100%; position:relative; z-index:1;"></div>
-                            <div class="absolute bottom-2 left-2 right-2 bg-white/90 backdrop-blur-sm text-xs px-3 py-1.5 rounded-lg border border-slate-200/80 z-[1000] pointer-events-none flex items-center justify-between text-slate-600 font-medium">
-                                <span>Drag the marker or click anywhere on the map to set location.</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Right: Address & Coordinates (5 cols) -->
-                    <div class="lg:col-span-5 space-y-4">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label for="lat-input" class="block text-xs font-semibold text-slate-700 mb-1.5">
-                                    Latitude
-                                </label>
-                                <input type="text" name="latitude" id="lat-input"
-                                       value="{{ location.latitude|default:'' }}"
-                                       placeholder="18.520430"
-                                       class="form-input text-sm font-mono bg-white"
-                                       oninput="syncMapMarkerFromInputs()">
-                            </div>
-                            <div>
-                                <label for="lng-input" class="block text-xs font-semibold text-slate-700 mb-1.5">
-                                    Longitude
-                                </label>
-                                <input type="text" name="longitude" id="lng-input"
-                                       value="{{ location.longitude|default:'' }}"
-                                       placeholder="73.856744"
-                                       class="form-input text-sm font-mono bg-white"
-                                       oninput="syncMapMarkerFromInputs()">
-                            </div>
-                        </div>
-
-                        <div>
-                            <label for="address-input" class="block text-xs font-semibold text-slate-700 mb-1.5">
-                                Full Address (Village / Taluka / District)
-                            </label>
-                            <textarea name="address" id="address-input" rows="5"
-                                      class="form-input text-sm leading-relaxed"
-                                      placeholder="Auto-filled when you drag marker on map or type manual address...">{{ location.address|default:'' }}</textarea>
-                            <p class="text-[11px] text-slate-400 mt-1">This address is shown on worker profiles and dispatch sheets.</p>
-                        </div>
-
-                        <div id="gps-status-msg" class="hidden text-xs px-3 py-2 rounded-xl"></div>
-                    </div>
-
-                </div>
+                {% include "adminpanel/includes/location_picker.html" with lp_address=location.address lp_lat=location.latitude lp_lng=location.longitude lp_show_map=True %}
             </div>
 
             <!-- ── SECTION 4: PARTNER & PROFESSIONAL PROFILE & KYC ── -->
@@ -519,14 +421,24 @@
                         </div>
                     </div>
 
-                    {% if not partner_profile and user.role != 'PARTNER' %}
-                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
-                        Currently Customer Role (Optional Partner Registration)
-                    </span>
+                    {% if not partner_profile %}
+                    <div class="flex items-center gap-3">
+                        <span id="partner-optional-badge" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                            Not a partner yet
+                        </span>
+                        <button type="button" id="partner-register-btn" onclick="setPartnerRegistration(true)"
+                                class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl border border-teal-300 bg-teal-50 text-teal-800 hover:bg-teal-100 transition-colors">
+                            Register as Partner
+                        </button>
+                        <button type="button" id="partner-cancel-btn" onclick="setPartnerRegistration(false)"
+                                class="hidden inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors">
+                            Cancel Registration
+                        </button>
+                    </div>
                     {% endif %}
                 </div>
 
-                <div class="space-y-6">
+                <fieldset id="partner-fieldset" class="space-y-6 min-w-0 {% if not partner_profile %}hidden{% endif %}" {% if not partner_profile %}disabled{% endif %}>
                     <!-- Partner Classification & Business Name -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
@@ -534,7 +446,8 @@
                                 Partner Type
                             </label>
                             <select name="partner_type" id="id_partner_type" class="form-input text-sm font-medium" onchange="togglePartnerTypeSections(this.value)">
-                                <option value="LABOR" {% if partner_profile.partner_type == 'LABOR' or not partner_profile %}selected{% endif %}>Manual Worker / Farm Labor (LABOR)</option>
+                                {% if not partner_profile %}<option value="" selected>-- Select partner type --</option>{% endif %}
+                                <option value="LABOR" {% if partner_profile.partner_type == 'LABOR' %}selected{% endif %}>Manual Worker / Farm Labor (LABOR)</option>
                                 <option value="MACHINERY" {% if partner_profile.partner_type == 'MACHINERY' %}selected{% endif %}>Machinery Owner / Tractor (MACHINERY)</option>
                                 <option value="TRANSPORT" {% if partner_profile.partner_type == 'TRANSPORT' %}selected{% endif %}>Transporter / Tempo / Truck (TRANSPORT)</option>
                                 <option value="AGENCY" {% if partner_profile.partner_type == 'AGENCY' %}selected{% endif %}>Agency (Multiple Services)</option>
@@ -660,11 +573,11 @@
 
                         </div>
                     </div>
-                </div>
+                </fieldset>
             </div>
 
             <!-- ── SECTION 5: SPECIFIC DETAILS (LABOR / MACHINERY / TRANSPORT) ── -->
-            <div id="sec-type-specific" class="p-6 sm:p-8 space-y-6 bg-slate-50/50">
+            <fieldset id="sec-type-specific" class="p-6 sm:p-8 space-y-6 bg-slate-50/50 min-w-0 {% if not partner_profile %}hidden{% endif %}" {% if not partner_profile %}disabled{% endif %}>
                 
                 <!-- 5A. LABOR DETAILS -->
                 <div id="partner-type-labor" class="partner-type-panel space-y-5">
@@ -852,7 +765,7 @@
                     </div>
                 </div>
 
-            </div>
+            </fieldset>
 
             <!-- ── BOTTOM FORM ACTION BAR ── -->
             <div class="p-6 bg-slate-50 flex items-center justify-between flex-wrap gap-4 border-t border-slate-200">
@@ -986,234 +899,6 @@
 
 <!-- ── SCRIPTS (Google Maps, GPS, Dynamic Sections, Shortcuts) ── -->
 <script>
-    // ── 1. Google Maps Logic ────────────────────────────────────────────────────
-    var map;
-    var marker;
-    var geocoder;
-
-    function initUserLocationMap() {
-        var defaultLat = 20.5937;
-        var defaultLng = 78.9629;
-        var hasLocation = false;
-
-        var existingLat = parseFloat(document.getElementById('lat-input').value);
-        var existingLng = parseFloat(document.getElementById('lng-input').value);
-
-        if (!isNaN(existingLat) && !isNaN(existingLng)) {
-            defaultLat = existingLat;
-            defaultLng = existingLng;
-            hasLocation = true;
-        }
-
-        var center = { lat: defaultLat, lng: defaultLng };
-
-        map = new google.maps.Map(document.getElementById('location-google-map'), {
-            center: center,
-            zoom: hasLocation ? 15 : 5,
-            mapTypeControl: true,
-            mapTypeControlOptions: {
-                style: google.maps.MapTypeControlStyle.DROPDOWN_MENU,
-                position: google.maps.ControlPosition.TOP_RIGHT
-            },
-            streetViewControl: false,
-            fullscreenControl: true,
-            zoomControl: true,
-            styles: [
-                { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }
-            ]
-        });
-
-        geocoder = new google.maps.Geocoder();
-
-        marker = new google.maps.Marker({
-            position: center,
-            map: map,
-            draggable: true,
-            animation: google.maps.Animation.DROP,
-            title: 'Drag to set location'
-        });
-
-        function updateCoords(lat, lng) {
-            document.getElementById('lat-input').value = lat.toFixed(6);
-            document.getElementById('lng-input').value = lng.toFixed(6);
-        }
-
-        function reverseGeocode(lat, lng) {
-            geocoder.geocode({ location: { lat: lat, lng: lng } }, function(results, status) {
-                if (status === 'OK' && results[0]) {
-                    document.getElementById('address-input').value = results[0].formatted_address;
-                }
-            });
-        }
-
-        // Marker drag
-        marker.addListener('dragend', function() {
-            var pos = marker.getPosition();
-            updateCoords(pos.lat(), pos.lng());
-            reverseGeocode(pos.lat(), pos.lng());
-        });
-
-        // Click on map
-        map.addListener('click', function(e) {
-            marker.setPosition(e.latLng);
-            updateCoords(e.latLng.lat(), e.latLng.lng());
-            reverseGeocode(e.latLng.lat(), e.latLng.lng());
-        });
-
-        // Sync marker from manual lat/lng inputs
-        window.syncMapMarkerFromInputs = function() {
-            var lat = parseFloat(document.getElementById('lat-input').value);
-            var lng = parseFloat(document.getElementById('lng-input').value);
-            if (!isNaN(lat) && !isNaN(lng)) {
-                var pos = new google.maps.LatLng(lat, lng);
-                marker.setPosition(pos);
-                map.setCenter(pos);
-                map.setZoom(15);
-            }
-        };
-
-        // ── Places Autocomplete on search input ──
-        var searchInput = document.getElementById('map-address-search');
-        var autocomplete = new google.maps.places.Autocomplete(searchInput, {
-            types: ['geocode', 'establishment'],
-            componentRestrictions: { country: 'in' },
-            fields: ['geometry', 'formatted_address', 'name']
-        });
-
-        // Bias results towards current map viewport
-        autocomplete.bindTo('bounds', map);
-
-        autocomplete.addListener('place_changed', function() {
-            var place = autocomplete.getPlace();
-            if (!place.geometry || !place.geometry.location) {
-                // User hit enter without selecting — fallback search
-                searchMapPlace();
-                return;
-            }
-
-            var lat = place.geometry.location.lat();
-            var lng = place.geometry.location.lng();
-
-            marker.setPosition(place.geometry.location);
-            map.setCenter(place.geometry.location);
-            map.setZoom(16);
-            updateCoords(lat, lng);
-            document.getElementById('address-input').value = place.formatted_address || place.name || '';
-        });
-
-        // Fallback manual search (if user clicks Search button)
-        window.searchMapPlace = function() {
-            var query = searchInput.value.trim();
-            if (!query) return;
-
-            geocoder.geocode({ address: query, region: 'in' }, function(results, status) {
-                var box = document.getElementById('map-search-results');
-                box.innerHTML = '';
-
-                if (status !== 'OK' || !results.length) {
-                    box.innerHTML = '<p class="px-4 py-3 text-xs text-slate-400">No places found. Try another term.</p>';
-                    box.classList.remove('hidden');
-                    return;
-                }
-
-                results.forEach(function(r) {
-                    var div = document.createElement('div');
-                    div.className = 'px-4 py-2 text-xs text-slate-700 hover:bg-slate-100 cursor-pointer border-b border-slate-100 last:border-0';
-                    div.textContent = r.formatted_address;
-                    div.onclick = function() {
-                        var lat = r.geometry.location.lat();
-                        var lng = r.geometry.location.lng();
-                        marker.setPosition(r.geometry.location);
-                        map.setCenter(r.geometry.location);
-                        map.setZoom(16);
-                        updateCoords(lat, lng);
-                        document.getElementById('address-input').value = r.formatted_address;
-                        searchInput.value = '';
-                        box.classList.add('hidden');
-                    };
-                    box.appendChild(div);
-                });
-                box.classList.remove('hidden');
-            });
-        };
-
-        // Close search results dropdown on outside click
-        document.addEventListener('click', function(e) {
-            var box = document.getElementById('map-search-results');
-            if (box && !box.contains(e.target) && e.target !== searchInput) {
-                box.classList.add('hidden');
-            }
-        });
-    }
-
-    // ── 2. Device GPS Location ───────────────────────────────────────────────────
-    function detectDeviceLocation() {
-        var btn = document.getElementById('btn-device-gps');
-        var pin = document.getElementById('gps-icon-pin');
-        var spinner = document.getElementById('gps-icon-spinner');
-        var label = document.getElementById('gps-btn-label');
-        var statusMsg = document.getElementById('gps-status-msg');
-
-        if (!navigator.geolocation) {
-            showGpsStatus('error', 'Geolocation not supported by browser.');
-            return;
-        }
-
-        btn.disabled = true;
-        pin.classList.add('hidden');
-        spinner.classList.remove('hidden');
-        label.textContent = 'Detecting GPS...';
-        statusMsg.classList.add('hidden');
-
-        navigator.geolocation.getCurrentPosition(
-            function(p) {
-                var lat = p.coords.latitude;
-                var lng = p.coords.longitude;
-                document.getElementById('lat-input').value = lat.toFixed(6);
-                document.getElementById('lng-input').value = lng.toFixed(6);
-
-                if (marker && map) {
-                    var pos = new google.maps.LatLng(lat, lng);
-                    marker.setPosition(pos);
-                    map.setCenter(pos);
-                    map.setZoom(16);
-                }
-
-                // Reverse geocode with Google
-                if (geocoder) {
-                    geocoder.geocode({ location: { lat: lat, lng: lng } }, function(results, status) {
-                        if (status === 'OK' && results[0]) {
-                            document.getElementById('address-input').value = results[0].formatted_address;
-                        }
-                    });
-                }
-
-                btn.disabled = false;
-                spinner.classList.add('hidden');
-                pin.classList.remove('hidden');
-                label.textContent = 'Detected Successfully';
-                showGpsStatus('success', 'Detected coords: ' + lat.toFixed(6) + ', ' + lng.toFixed(6) + ' (~' + Math.round(p.coords.accuracy) + 'm accuracy)');
-                setTimeout(function(){ label.textContent = 'Detect from Device GPS'; }, 3000);
-            },
-            function(err) {
-                btn.disabled = false;
-                spinner.classList.add('hidden');
-                pin.classList.remove('hidden');
-                label.textContent = 'Detect from Device GPS';
-                var msg = err.code === 1 ? 'Permission denied in browser.' : 'GPS signal unavailable.';
-                showGpsStatus('error', msg);
-            },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
-    }
-
-    function showGpsStatus(type, msg) {
-        var el = document.getElementById('gps-status-msg');
-        el.className = 'text-xs px-3 py-2 rounded-xl ' + (type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200');
-        el.textContent = msg;
-        el.classList.remove('hidden');
-    }
-
     // ── 3. Avatar Live Preview ───────────────────────────────────────────────────
     function previewAvatar(input) {
         if (input.files && input.files[0]) {
@@ -1267,11 +952,29 @@
         }
     }
 
+    function setPartnerRegistration(on) {
+        var flag = document.getElementById('register-partner-flag');
+        var registerBtn = document.getElementById('partner-register-btn');
+        if (!flag || !registerBtn) return;
+
+        flag.value = on ? '1' : '0';
+        ['partner-fieldset', 'sec-type-specific'].forEach(function(id) {
+            var el = document.getElementById(id);
+            el.disabled = !on;
+            el.classList.toggle('hidden', !on);
+        });
+        registerBtn.classList.toggle('hidden', on);
+        document.getElementById('partner-cancel-btn').classList.toggle('hidden', !on);
+        document.getElementById('partner-optional-badge').classList.toggle('hidden', on);
+
+        var typeSelect = document.getElementById('id_partner_type');
+        togglePartnerTypeSections(on && typeSelect ? typeSelect.value : '');
+    }
+
     function handleRoleChange(selectedRole) {
-        // If changed to PARTNER, ensure partner section is visible
-        var partnerTypeSelect = document.getElementById('id_partner_type');
-        if (selectedRole === 'PARTNER' && partnerTypeSelect) {
-            togglePartnerTypeSections(partnerTypeSelect.value);
+        // Switching to PARTNER requires choosing a partner type, so open the registration form
+        if (selectedRole === 'PARTNER' && document.getElementById('partner-register-btn')) {
+            setPartnerRegistration(true);
         }
     }
 
@@ -1328,7 +1031,6 @@
     });
 
     // ── 8. Initialize on Load ────────────────────────────────────────────────────
-    // initUserLocationMap() is called by Google Maps callback below
     document.addEventListener('DOMContentLoaded', function() {
         var partnerTypeSelect = document.getElementById('id_partner_type');
         if (partnerTypeSelect) {
@@ -1336,16 +1038,4 @@
         }
     });
 </script>
-
-{% if google_maps_key %}
-<script async defer
-    src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_key }}&libraries=places&callback=initUserLocationMap">
-</script>
-{% else %}
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        document.getElementById('location-google-map').innerHTML = '<div class="flex items-center justify-center h-full text-slate-400 text-sm font-medium">Google Maps API key is not configured. Add GOOGLE_MAPS_API_KEY to your .env file.</div>';
-    });
-</script>
-{% endif %}
 {% endblock %}

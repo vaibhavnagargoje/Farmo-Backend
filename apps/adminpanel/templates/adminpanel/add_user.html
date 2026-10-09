@@ -98,53 +98,16 @@
 
     <div class="f-hr"></div>
 
-    <!-- ── Row 4: Address (full width) ───────────────────────────── -->
+    <!-- ── Row 4: Location picker ───────────────────────────── -->
     <div class="px-6 py-4">
-      <div class="f-group">
-        <label for="id_address" class="f-label">Address</label>
-        {{ form.address }}
-        {% if form.address.errors %}<p class="f-err">{{ form.address.errors|join:", " }}</p>{% endif %}
-      </div>
+      <p class="f-label">Location <span class="f-opt">optional · search an address or use device GPS</span></p>
+      {% if form.address.errors or form.latitude.errors or form.longitude.errors %}
+      <p class="f-err mb-2">{{ form.address.errors|join:", " }} {{ form.latitude.errors|join:", " }} {{ form.longitude.errors|join:", " }}</p>
+      {% endif %}
+      {% include "adminpanel/includes/location_picker.html" with lp_address=form.address.value lp_lat=form.latitude.value lp_lng=form.longitude.value lp_show_map=False %}
     </div>
 
-    <div class="f-hr"></div>
-
-    <!-- ── Row 5: GPS Coordinates ─────────────────────────────────── -->
-    <div class="px-6 py-4">
-      <div class="flex items-center justify-between mb-3">
-        <p class="f-label mb-0">GPS Coordinates <span class="f-opt">auto-filled</span></p>
-        <button type="button" id="btn-get-coords" onclick="getCoordinates()"
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-all">
-          <svg id="coords-pin" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-          </svg>
-          <svg id="coords-spin" class="w-3.5 h-3.5 hidden" style="animation:_spin 0.8s linear infinite" fill="none" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" style="opacity:.25"/>
-            <path fill="currentColor" style="opacity:.75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-          </svg>
-          <svg id="coords-ok" class="w-3.5 h-3.5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-          </svg>
-          <span id="coords-label">Detect from Device</span>
-        </button>
-      </div>
-
-      <div class="form-grid" style="gap:16px;">
-        <div class="f-group">
-          <label for="id_latitude" class="f-label-sm">Latitude</label>
-          {{ form.latitude }}
-        </div>
-        <div class="f-group">
-          <label for="id_longitude" class="f-label-sm">Longitude</label>
-          {{ form.longitude }}
-        </div>
-      </div>
-
-      <div id="coords-status" class="hidden mt-2.5 text-xs px-3 py-2 rounded-lg"></div>
-      <p class="mt-2 text-xs text-slate-400">Coordinates are read-only — click <strong>Detect from Device</strong> to auto-fill from your browser.</p>
-    </div>
-
+    <!-- ── Coordinates are part of the location picker above ─────────────────────────────────── -->
     <!-- ── Form footer ─────────────────────────────────────────────── -->
     <div class="border-t border-slate-200 bg-slate-50 px-6 py-4 flex items-center justify-between" style="border-bottom-left-radius:12px;border-bottom-right-radius:12px;">
       <a href="{% url 'adminpanel:users-list' %}"
@@ -216,53 +179,6 @@ input[readonly].form-input:focus {
 </style>
 
 <script>
-function getCoordinates() {
-  var btn = document.getElementById('btn-get-coords');
-  if (!navigator.geolocation) { showStatus('error', 'Geolocation not supported.'); return; }
-  btn.disabled = true;
-  id('coords-pin').classList.add('hidden');
-  id('coords-spin').classList.remove('hidden');
-  id('coords-ok').classList.add('hidden');
-  id('coords-label').textContent = 'Detecting\u2026';
-  id('coords-status').classList.add('hidden');
-
-  navigator.geolocation.getCurrentPosition(
-    function(p) {
-      var lat = p.coords.latitude.toFixed(6);
-      var lng = p.coords.longitude.toFixed(6);
-      id('id_latitude').value = lat;
-      id('id_longitude').value = lng;
-      id('coords-spin').classList.add('hidden');
-      id('coords-ok').classList.remove('hidden');
-      id('coords-label').textContent = 'Detected';
-      btn.classList.replace('bg-emerald-50','bg-green-100');
-      btn.classList.replace('text-emerald-700','text-green-800');
-      btn.classList.replace('border-emerald-200','border-green-300');
-      showStatus('success', 'Detected: ' + lat + ', ' + lng + ' (~' + Math.round(p.coords.accuracy) + 'm)');
-      setTimeout(function(){ btn.disabled = false; }, 3000);
-    },
-    function(e) {
-      btn.disabled = false;
-      id('coords-spin').classList.add('hidden');
-      id('coords-pin').classList.remove('hidden');
-      id('coords-label').textContent = 'Detect from Device';
-      var msg = e.code===1 ? 'Access denied — allow location in browser settings.'
-              : e.code===2 ? 'Location unavailable. Check GPS/network.'
-              : e.code===3 ? 'Request timed out. Try again.'
-              : 'Could not get location.';
-      showStatus('error', msg);
-    },
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-  );
-}
-
-function showStatus(type, msg) {
-  var el = id('coords-status');
-  el.className = 'mt-2.5 text-xs px-3 py-2 rounded-lg ' + (type === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700');
-  el.textContent = msg;
-  el.classList.remove('hidden');
-}
-
 function id(x) { return document.getElementById(x); }
 
 // Auto-calculate Age when Date of Birth changes

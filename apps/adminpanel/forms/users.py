@@ -38,7 +38,9 @@ class CustomerProfileAdminForm(forms.ModelForm):
             self.fields["age"].widget.attrs.update({"placeholder": "e.g. 35", "min": "1", "max": "120"})
 
 
-class UserLocationForm(forms.Form):
+class LocationFieldsForm(forms.Form):
+    """Address and coordinates posted by the shared location picker."""
+
     address = forms.CharField(
         widget=forms.Textarea(attrs={"rows": 3}),
         required=False,
@@ -47,6 +49,8 @@ class UserLocationForm(forms.Form):
     latitude = forms.DecimalField(max_digits=9, decimal_places=6, required=False, label="Latitude")
     longitude = forms.DecimalField(max_digits=9, decimal_places=6, required=False, label="Longitude")
 
+
+class UserLocationForm(LocationFieldsForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         _apply(self.fields)
@@ -55,7 +59,7 @@ class UserLocationForm(forms.Form):
         self.fields["longitude"].widget.attrs["placeholder"] = "73.856744"
 
 
-class AddUserForm(forms.Form):
+class AddUserForm(LocationFieldsForm):
     """
     Single combined form for admin to create a new user with:
     - User account fields (phone, email, language, active status)
@@ -113,27 +117,7 @@ class AddUserForm(forms.Form):
         label="Age",
     )
 
-    # ── Location ──────────────────────────────────────────────────────────────
-    address = forms.CharField(
-        widget=forms.Textarea(attrs={"rows": 3}),
-        required=False,
-        label="Address",
-        help_text="Village / Taluka / District",
-    )
-    latitude = forms.DecimalField(
-        max_digits=9,
-        decimal_places=6,
-        required=False,
-        label="Latitude",
-        help_text="Auto-filled via GPS",
-    )
-    longitude = forms.DecimalField(
-        max_digits=9,
-        decimal_places=6,
-        required=False,
-        label="Longitude",
-        help_text="Auto-filled via GPS",
-    )
+    # Location fields (address, latitude, longitude) come from LocationFieldsForm.
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -149,16 +133,6 @@ class AddUserForm(forms.Form):
             "max": "120",
         })
         self.fields["address"].widget.attrs.update({"placeholder": "e.g. At. Shirur, Tal. Shirur, Dist. Pune"})
-        self.fields["latitude"].widget.attrs.update({
-            "placeholder": "18.520430",
-            "readonly": "readonly",
-            "id": "id_latitude",
-        })
-        self.fields["longitude"].widget.attrs.update({
-            "placeholder": "73.856744",
-            "readonly": "readonly",
-            "id": "id_longitude",
-        })
 
     def clean_phone_number(self):
         phone = self.cleaned_data.get("phone_number", "").strip()
