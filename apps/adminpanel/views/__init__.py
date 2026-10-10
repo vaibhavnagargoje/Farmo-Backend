@@ -65,6 +65,7 @@ from .booking_actions import (
     booking_cancel,
     booking_complete,
     booking_rebroadcast,
+    booking_update_pricing,
 )
 from .quick_book import (
     quick_book_user_search,
@@ -117,6 +118,7 @@ __all__ = [
     'booking_cancel',
     'booking_complete',
     'booking_rebroadcast',
+    'booking_update_pricing',
     'quick_book_user_search',
     'quick_book_categories',
     'quick_book_create',

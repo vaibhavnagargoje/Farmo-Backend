@@ -1,11 +1,44 @@
-"""Shared helpers for the admin panel: registration progress and phone lookup."""
+"""Shared helpers for the admin panel: registration progress, phone lookup and number parsing."""
 
 import re
+from decimal import Decimal, InvalidOperation
 
 from django.urls import reverse
 from labor_services.models import LaborDetails
 from partners.models import PartnerProfile
 from users.models import User
+
+CENTS = Decimal("0.01")
+MAX_QUANTITY = Decimal("10000")
+MAX_UNIT_PRICE = Decimal("10000000")
+
+
+def parse_decimal(value):
+    """A finite Decimal from form/JSON input ("3.5", 3.5), or None."""
+    text = str(value if value is not None else "").strip()
+    if not text:
+        return None
+    try:
+        number = Decimal(text)
+    except InvalidOperation:
+        return None
+    return number if number.is_finite() else None
+
+
+def parse_quantity(value):
+    """Work quantity (hours/acres/km) above 0, at most 10000 and 2 decimals, or None."""
+    quantity = parse_decimal(value)
+    if quantity is None or not 0 < quantity <= MAX_QUANTITY or quantity != quantity.quantize(CENTS):
+        return None
+    return quantity.quantize(CENTS)
+
+
+def parse_unit_price(value):
+    """A unit price above 0 and below 1 crore, rounded to paise, or None."""
+    price = parse_decimal(value)
+    if price is None or not 0 < price < MAX_UNIT_PRICE:
+        return None
+    return price.quantize(CENTS)
 
 
 def normalize_phone(raw):

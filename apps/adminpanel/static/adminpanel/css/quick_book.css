@@ -163,6 +163,10 @@
 textarea.qb-input { resize: vertical; min-height: 64px; }
 .qb-addon { display: flex; }
 .qb-addon .qb-input { border-radius: 10px 0 0 10px; text-align: center; font-weight: 700; min-width: 0; }
+.qb-qty .qb-input { text-align: left; font-size: 16px; padding-left: 14px; }
+.qb-qty .qb-input::placeholder { font-weight: 500; font-size: 14px; color: #94a3b8; }
+.qb-qty.qb-needs-value .qb-input { border-color: #f59e0b; background: #fffbeb; }
+.qb-qty.qb-needs-value .qb-input:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18); }
 .qb-addon span {
     padding: 10px; background: #f1f5f9; border: 2px solid #e2e8f0; border-left: none;
     border-radius: 0 10px 10px 0; font-size: 12px; color: #64748b; font-weight: 500; white-space: nowrap;

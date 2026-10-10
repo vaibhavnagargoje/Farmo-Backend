@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.utils import timezone
 from django.utils.html import format_html
 from .models import Booking, InstantBookingRequest
 
@@ -57,7 +58,9 @@ class BookingAdmin(admin.ModelAdmin):
         'expires_at',
         'created_at', 
         'updated_at',
-        'accepted_by_agent'
+        'accepted_by_agent',
+        'price_updated_by',
+        'price_updated_at',
     )
 
     inlines = [InstantBookingRequestInline]
@@ -73,7 +76,8 @@ class BookingAdmin(admin.ModelAdmin):
             'fields': ('scheduled_date', 'scheduled_time', 'expires_at', 'address', 'lat', 'lng')
         }),
         ('Financials', {
-            'fields': ('quantity', 'unit_price', 'total_amount')
+            'description': "Total = quantity × unit price − discount (recalculated on save)",
+            'fields': ('quantity', 'unit_price', 'discount_amount', 'total_amount', 'price_updated_by', 'price_updated_at')
         }),
         ('Execution', {
             'description': "Tracking when the work actually happened",
@@ -84,6 +88,14 @@ class BookingAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+    def save_model(self, request, obj, form, change):
+        if {'quantity', 'unit_price', 'discount_amount'} & set(form.changed_data):
+            obj.recalculate_total()
+            if change:
+                obj.price_updated_by = request.user
+                obj.price_updated_at = timezone.now()
+        super().save_model(request, obj, form, change)
 
     @admin.display(description='Type')
     def booking_type_badge(self, obj):

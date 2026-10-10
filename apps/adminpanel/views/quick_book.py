@@ -10,7 +10,6 @@ import json
 import re
 import uuid
 from datetime import date
-from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
 from django.db.models import Q
@@ -33,12 +32,10 @@ from locations.pricing import resolve_instant_price_detail
 from services.models import Category
 from users.models import CustomerProfile, User
 
-from ..helpers import find_user_by_phone, normalize_phone
+from ..helpers import find_user_by_phone, normalize_phone, parse_quantity, parse_unit_price
 from ..permissions import is_agent
 
 MAX_RESULTS = 8
-MAX_QUANTITY = 10000
-MAX_UNIT_PRICE = Decimal("10000000")
 
 
 def _error(message, status=400, **extra):
@@ -231,12 +228,9 @@ def quick_book_create(request):
     if not address:
         return _error("Service address is required.")
 
-    try:
-        quantity = int(data.get("quantity"))
-    except (TypeError, ValueError):
-        quantity = 0
-    if not 1 <= quantity <= MAX_QUANTITY:
-        return _error("Quantity must be a whole number of at least 1.")
+    quantity = parse_quantity(data.get("quantity"))
+    if quantity is None:
+        return _error("Enter the work quantity: more than 0, up to 2 decimals (e.g. 5 or 3.5).")
 
     scheduled_date = timezone.localdate()
     if data.get("scheduled_date"):
@@ -249,11 +243,8 @@ def quick_book_create(request):
 
     unit_price = None
     if str(data.get("unit_price") if data.get("unit_price") is not None else "").strip():
-        try:
-            unit_price = Decimal(str(data["unit_price"]))
-        except InvalidOperation:
-            return _error("Enter a valid unit price.")
-        if not unit_price.is_finite() or unit_price >= MAX_UNIT_PRICE:
+        unit_price = parse_unit_price(data["unit_price"])
+        if unit_price is None:
             return _error("Enter a valid unit price.")
 
     name = (data.get("name") or "").strip()[:255]

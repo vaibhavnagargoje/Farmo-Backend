@@ -22,6 +22,7 @@ from bookings.models import Booking, InstantBookingRequest
 from services.models import Category, Service, ServicePriceUnit
 
 from .. import booking_analytics as analytics
+from .booking_actions import pricing_locked_reason
 from ..map_data import candidate_data, partner_data, partner_queryset, user_name
 from ..permissions import is_agent
 
@@ -213,7 +214,7 @@ def _cell(value):
 EXPORT_COLUMNS = [
     "Booking ID", "Order number", "Type", "Status", "Source", "Created by agent",
     "Customer name", "Customer phone", "Category", "Service", "Provider", "Provider phone",
-    "Quantity", "Unit", "Unit price", "Original unit price", "Total amount", "Payment status",
+    "Quantity", "Unit", "Unit price", "Original unit price", "Subtotal", "Discount", "Total amount", "Payment status",
     "Address", "Latitude", "Longitude", "Work date", "Work time",
     "Created at", "Assigned at", "Started at", "Completed at", "Cancellation reason", "Note",
 ]
@@ -229,7 +230,8 @@ def _export_row(b):
         user_name(b.customer), b.customer.phone_number,
         b.category.name if b.category else "", b.service.title if b.service else "",
         provider.business_name if provider else "", provider.user.phone_number if provider else "",
-        b.quantity, b.price_unit, b.unit_price, b.original_unit_price, b.total_amount, b.get_payment_status_display(),
+        b.quantity_display, b.price_unit, b.unit_price, b.original_unit_price, b.subtotal, b.discount_amount,
+        b.total_amount, b.get_payment_status_display(),
         b.address, b.lat, b.lng,
         b.scheduled_date.isoformat() if b.scheduled_date else "",
         b.scheduled_time.strftime("%H:%M") if b.scheduled_time else "",
@@ -283,7 +285,7 @@ def _assignment_candidates(booking):
 def booking_detail(request, booking_id):
     booking = Booking.objects.select_related(
         "customer__customer_profile", "customer__location", "category", "service__price_unit",
-        "provider__user", "created_by_agent", "accepted_by_agent", "cancelled_by",
+        "provider__user", "created_by_agent", "accepted_by_agent", "cancelled_by", "price_updated_by",
     ).filter(booking_id=booking_id).first()
     if booking is None:
         raise Http404("Booking not found")
@@ -304,9 +306,13 @@ def booking_detail(request, booking_id):
         ("Assigned", booking.assigned_at, booking.accepted_by_agent and f"by agent {booking.accepted_by_agent.phone_number}"),
         ("Work started", booking.work_started_at, None),
         ("Completed", booking.work_completed_at, None),
+        ("Price updated", booking.price_updated_at, booking.price_updated_by and f"by agent {booking.price_updated_by.phone_number}"),
     ]
     if booking.status == Booking.Status.CANCELLED:
         timeline.append(("Cancelled", booking.updated_at, booking.cancelled_by and f"by {booking.cancelled_by.phone_number}"))
+
+    timeline.sort(key=lambda row: row[1] or booking.created_at)
+    pricing_locked = pricing_locked_reason(booking)
 
     return render(request, "adminpanel/booking_detail.html", {
         "page_title": f"Booking {booking.booking_id}",
@@ -320,6 +326,8 @@ def booking_detail(request, booking_id):
         "can_cancel": booking.status not in (Booking.Status.CANCELLED, Booking.Status.COMPLETED),
         "can_complete": booking.status in (Booking.Status.CONFIRMED, Booking.Status.IN_PROGRESS) and booking.provider_id,
         "can_rebroadcast": can_rebroadcast,
+        "can_edit_pricing": pricing_locked is None,
+        "pricing_locked_reason": pricing_locked,
         "eligible_partners": eligible,
         "other_partners": other,
         "maps_url": f"https://www.google.com/maps?q={booking.lat},{booking.lng}" if booking.lat is not None and booking.lng is not None else "",

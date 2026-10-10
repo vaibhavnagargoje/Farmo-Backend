@@ -104,28 +104,30 @@
 
         <div id="qb-job" hidden>
             <p class="qb-section-label" style="margin-top:18px;">Work details</p>
-            <div class="qb-grid-2">
-                <div>
-                    <label class="qb-label" for="qb-quantity">Quantity *</label>
-                    <div class="qb-addon">
-                        <input type="number" class="qb-input" id="qb-quantity" value="1" min="1" step="1" inputmode="numeric">
-                        <span id="qb-unit-label">Per Hour</span>
-                    </div>
-                </div>
+            <label class="qb-label" for="qb-quantity">Work quantity *</label>
+            <div class="qb-addon qb-qty qb-needs-value">
+                <input type="text" class="qb-input" id="qb-quantity" inputmode="decimal" autocomplete="off" maxlength="8"
+                       placeholder="How much work? e.g. 5 or 3.5" aria-describedby="qb-quantity-hint">
+                <span id="qb-unit-label">Per Hour</span>
+            </div>
+            <p class="qb-hint" id="qb-quantity-hint">Ask the farmer how many acres / hours. Decimals are fine (3.5).</p>
+
+            <div class="qb-grid-2" style="margin-top:12px;">
                 <div>
                     <label class="qb-label" for="qb-unit-price">Unit price (₹) *</label>
-                    <input type="number" class="qb-input" id="qb-unit-price" min="1" step="1" inputmode="decimal">
+                    <input type="number" class="qb-input" id="qb-unit-price" min="1" step="any" inputmode="decimal">
                     <p class="qb-hint" id="qb-price-hint"></p>
+                </div>
+                <div>
+                    <label class="qb-label" for="qb-date">Work date</label>
+                    <input type="date" class="qb-input" id="qb-date">
                 </div>
             </div>
 
             <div class="qb-total">
                 <span>Estimated total</span>
-                <strong id="qb-total">₹0</strong>
+                <strong id="qb-total">—</strong>
             </div>
-
-            <label class="qb-label" for="qb-date">Work date</label>
-            <input type="date" class="qb-input" id="qb-date">
 
             <label class="qb-label" for="qb-note" style="margin-top:12px;">Work description</label>
             <textarea class="qb-input" id="qb-note" rows="3" placeholder="Crop, field size, soil, access road, preferred time…"></textarea>

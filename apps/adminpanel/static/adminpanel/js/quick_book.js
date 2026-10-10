@@ -30,6 +30,12 @@ const QuickBook = (() => {
         const d = new Date();
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     };
+    // Work quantity above 0 with at most 2 decimals (3.5 acres), or null. Mirrors helpers.parse_quantity.
+    const parseQty = () => {
+        const text = $('qb-quantity').value.trim();
+        const qty = Number(text);
+        return /^\d+(\.\d{1,2})?$/.test(text) && qty > 0 && qty <= 10000 ? qty : null;
+    };
     // Mirrors adminpanel.helpers.normalize_phone.
     const normalizePhone = (raw) => {
         let digits = String(raw || '').replace(/\D/g, '');
@@ -97,7 +103,9 @@ const QuickBook = (() => {
         $('qb-new-name').value = '';
         $('qb-categories').replaceChildren();
         $('qb-job').hidden = true;
-        $('qb-quantity').value = '1';
+        $('qb-quantity').value = '';
+        $('qb-quantity').closest('.qb-qty').classList.add('qb-needs-value');
+        $('qb-total').textContent = '—';
         $('qb-unit-price').value = '';
         $('qb-date').value = todayStr();
         $('qb-date').min = todayStr();
@@ -176,8 +184,11 @@ const QuickBook = (() => {
                 showError(3, 'This customer already has an open order in this category.', { url: state.category.open_booking.url, text: 'Open it' });
                 return false;
             }
-            const qty = Number($('qb-quantity').value);
-            if (!Number.isInteger(qty) || qty < 1) { showError(3, 'Quantity must be a whole number of at least 1.'); return false; }
+            if (parseQty() === null) {
+                showError(3, 'Enter the work quantity: more than 0, up to 2 decimals (e.g. 5 or 3.5).');
+                $('qb-quantity').focus();
+                return false;
+            }
             if (!(Number($('qb-unit-price').value) > 0)) { showError(3, 'Unit price must be greater than zero.'); return false; }
             const date = $('qb-date').value;
             if (date && date < todayStr()) { showError(3, 'Work date cannot be in the past.'); return false; }
@@ -382,12 +393,15 @@ const QuickBook = (() => {
         $('qb-unit-label').textContent = category.price_unit;
         if (switched || !$('qb-unit-price').value) $('qb-unit-price').value = category.price;
         updateTotal();
+        // The quantity is what the caller just told the agent; ask for it next.
+        if (!$('qb-quantity').value.trim()) setTimeout(() => $('qb-quantity').focus(), 50);
     }
 
     function updateTotal() {
-        const qty = Number($('qb-quantity').value) || 0;
+        const qty = parseQty();
         const price = Number($('qb-unit-price').value) || 0;
-        $('qb-total').textContent = rupees(qty * price);
+        $('qb-total').textContent = qty === null ? '—' : rupees(qty * price);
+        $('qb-quantity').closest('.qb-qty').classList.toggle('qb-needs-value', !$('qb-quantity').value.trim());
         const hint = $('qb-price-hint');
         if (!state.category) { hint.textContent = ''; return; }
         const overridden = price > 0 && price !== Number(state.category.price);
@@ -401,7 +415,7 @@ const QuickBook = (() => {
     function buildReview() {
         const c = state.customer;
         const cat = state.category;
-        const qty = Number($('qb-quantity').value);
+        const qty = parseQty();
         const price = Number($('qb-unit-price').value);
         const overridden = price !== Number(cat.price);
         const note = $('qb-note').value.trim();
@@ -447,7 +461,7 @@ const QuickBook = (() => {
             address: $('qb-address').value.trim(),
             lat, lng,
             save_location: !state.isNew && $('qb-save-location').checked,
-            quantity: Number($('qb-quantity').value),
+            quantity: $('qb-quantity').value.trim(),
             unit_price: $('qb-unit-price').value,
             scheduled_date: $('qb-date').value,
             note: $('qb-note').value.trim(),

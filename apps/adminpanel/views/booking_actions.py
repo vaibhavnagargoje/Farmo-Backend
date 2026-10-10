@@ -1,9 +1,10 @@
-"""State changes on a single booking (assign, cancel, complete, retry search).
+"""State changes on a single booking (assign, cancel, complete, retry search, pricing).
 
 These JSON endpoints are shared by the dispatch map and the Bookings pages, so
 every agent action on a booking goes through one place.
 """
 
+from decimal import Decimal
 from functools import wraps
 
 from django.db import transaction
@@ -19,6 +20,7 @@ from bookings.models import Booking, InstantBookingRequest
 from partners.models import PartnerProfile
 from services.models import Service
 
+from ..helpers import CENTS, parse_decimal, parse_quantity, parse_unit_price
 from ..map_data import booking_data, booking_queryset, candidate_data, partner_data, partner_queryset
 from ..permissions import is_agent
 
@@ -152,6 +154,83 @@ def booking_complete(request):
         "message": f"Booking #{booking.booking_id} marked as completed!",
         "booking_id": booking.booking_id,
         "status": booking.status,
+    })
+
+
+def pricing_locked_reason(booking):
+    """Why quantity/rate/discount can no longer be changed, or None if they can."""
+    if booking.status == Booking.Status.CANCELLED:
+        return "Cancelled orders cannot be repriced."
+    if booking.payment_status in (Booking.PaymentStatus.PAID, Booking.PaymentStatus.REFUNDED):
+        return f"Payment is already {booking.get_payment_status_display().lower()}; the price is locked."
+    return None
+
+
+@require_POST
+@never_cache
+@_json_404
+def booking_update_pricing(request):
+    """
+    Change quantity, unit rate and discount on an existing order. The discount
+    may be typed as ₹ or %, and is stored in rupees.
+    """
+    if not is_agent(request.user):
+        return JsonResponse({"success": False, "error": "Admin access required."}, status=403)
+    quantity = parse_quantity(request.POST.get("quantity"))
+    if quantity is None:
+        return JsonResponse({"success": False, "error": "Enter the work quantity: more than 0, up to 2 decimals (e.g. 5 or 3.5)."}, status=400)
+    unit_price = parse_unit_price(request.POST.get("unit_price"))
+    if unit_price is None:
+        return JsonResponse({"success": False, "error": "Enter a unit price greater than zero."}, status=400)
+    discount_type = request.POST.get("discount_type") or "amount"
+    raw_discount = (request.POST.get("discount_value") or "").strip()
+    discount_value = parse_decimal(raw_discount) if raw_discount else Decimal("0")
+    if discount_type not in ("amount", "percent") or discount_value is None or discount_value < 0:
+        return JsonResponse({"success": False, "error": "Enter a valid discount (0 or more)."}, status=400)
+
+    subtotal = (unit_price * quantity).quantize(CENTS)
+    if discount_type == "percent":
+        if discount_value > 100:
+            return JsonResponse({"success": False, "error": "Discount cannot be more than 100%."}, status=400)
+        discount = (subtotal * discount_value / 100).quantize(CENTS)
+    else:
+        discount = discount_value.quantize(CENTS)
+        if discount > subtotal:
+            return JsonResponse({"success": False, "error": f"Discount cannot be more than the subtotal (₹{subtotal})."}, status=400)
+
+    with transaction.atomic():
+        booking = get_object_or_404(Booking.objects.select_for_update(), booking_id=request.POST.get("booking_id") or "")
+        locked = pricing_locked_reason(booking)
+        if locked:
+            return JsonResponse({"success": False, "error": locked}, status=409)
+        # original_unit_price keeps the system rate while an agent rate is in force.
+        if unit_price != booking.unit_price and booking.original_unit_price is None:
+            booking.original_unit_price = booking.unit_price
+        if unit_price == booking.original_unit_price:
+            booking.original_unit_price = None
+        booking.quantity = quantity
+        booking.unit_price = unit_price
+        booking.discount_amount = discount
+        booking.recalculate_total()
+        booking.price_updated_by = request.user
+        booking.price_updated_at = timezone.now()
+        # update_fields: a price change must not re-run save()'s status side effects.
+        booking.save(update_fields=[
+            "quantity", "unit_price", "original_unit_price", "discount_amount", "total_amount",
+            "price_updated_by", "price_updated_at", "updated_at",
+        ])
+    return JsonResponse({
+        "success": True,
+        "message": f"Price updated: {booking.quantity_display} × ₹{booking.unit_price}"
+                   + (f" − ₹{booking.discount_amount}" if booking.discount_amount else "")
+                   + f" = ₹{booking.total_amount}",
+        "booking_id": booking.booking_id,
+        "quantity": float(booking.quantity),
+        "unit_price": str(booking.unit_price),
+        "original_unit_price": str(booking.original_unit_price) if booking.original_unit_price is not None else None,
+        "discount_amount": str(booking.discount_amount),
+        "subtotal": str(booking.subtotal),
+        "total_amount": str(booking.total_amount),
     })
 
 

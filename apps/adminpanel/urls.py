@@ -54,6 +54,7 @@ urlpatterns = [
     path('bookings/actions/cancel/', views.booking_cancel, name='booking-cancel'),
     path('bookings/actions/complete/', views.booking_complete, name='booking-complete'),
     path('bookings/actions/retry-search/', views.booking_rebroadcast, name='booking-rebroadcast'),
+    path('bookings/actions/update-pricing/', views.booking_update_pricing, name='booking-update-pricing'),
 
     # Quick Book wizard (global slide-over; JSON)
     path('bookings/quick-book/user-search/', views.quick_book_user_search, name='quick-book-user-search'),

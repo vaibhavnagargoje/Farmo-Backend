@@ -68,7 +68,7 @@ def build_message(booking, partner, area_label=""):
     unit = unit_names.get(str(booking.price_unit).upper(), booking.price_unit)
     loc = getattr(partner.user, "location", None)
     dist = distance_km(booking.lat, booking.lng, loc.latitude if loc else None, loc.longitude if loc else None)
-    lines = ["नमस्कार! फार्मोकडून कामाची माहिती:", f"ऑर्डर: {booking.order_number or booking.booking_id}", f"काम: {work}", f"कामाचे प्रमाण: {booking.quantity} {unit}"]
+    lines = ["नमस्कार! फार्मोकडून कामाची माहिती:", f"ऑर्डर: {booking.order_number or booking.booking_id}", f"काम: {work}", f"कामाचे प्रमाण: {booking.quantity_display} {unit}"]
     if booking.scheduled_date:
         date = booking.scheduled_date.strftime("%d-%m-%Y")
         time = booking.scheduled_time.strftime("%H:%M") if booking.scheduled_time else ""
@@ -81,7 +81,8 @@ def build_message(booking, partner, area_label=""):
             lines.append(f"नकाशा: https://www.google.com/maps/search/?api=1&query={booking.lat},{booking.lng}")
         if booking.service_id:
             lines.append(f"सेवा: {booking.service.title}")
-        lines.append(f"ठरलेला दर: ₹{booking.unit_price} / {unit} · एकूण: ₹{booking.total_amount}")
+        discount = f" · सूट: ₹{booking.discount_amount}" if booking.discount_amount else ""
+        lines.append(f"ठरलेला दर: ₹{booking.unit_price} / {unit}{discount} · एकूण: ₹{booking.total_amount}")
         if booking.note:
             lines.append(f"कामाबद्दल सूचना: {booking.note}")
         lines.append("हे काम तुम्हाला नियुक्त केले आहे. कृपया शेतकऱ्याशी संपर्क साधा.")

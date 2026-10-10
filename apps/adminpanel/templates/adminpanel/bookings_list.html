@@ -151,7 +151,7 @@
                         </td>
                         <td class="px-4 py-3 text-slate-600 hidden md:table-cell">
                             {{ b.category.name|default:"—" }}
-                            <p class="text-xs text-slate-400">{{ b.quantity }} × {{ b.price_unit|lower }}</p>
+                            <p class="text-xs text-slate-400">{{ b.quantity_display }} × {{ b.price_unit|lower }}</p>
                         </td>
                         <td class="px-4 py-3 hidden lg:table-cell">
                             {% if b.provider %}

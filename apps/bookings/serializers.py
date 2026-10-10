@@ -1,4 +1,6 @@
 # apps/bookings/serializers.py
+from decimal import Decimal
+
 from rest_framework import serializers
 from django.utils import timezone
 from .instant import InstantBookingError, active_instant_booking, create_instant_booking
@@ -8,6 +10,22 @@ from services.models import Category, Service
 from partners.serializers import PartnerProfileSerializer
 from partners.models import PartnerProfile
 from users.serializers import UserSerializer
+
+MAX_QUANTITY = Decimal("10000")
+
+
+def quantity_input_field(**kwargs):
+    """Work quantity sent by the app: decimals allowed (3.5 acres), up to 2 places."""
+    return serializers.DecimalField(
+        max_digits=8, decimal_places=2, min_value=Decimal("0.01"), max_value=MAX_QUANTITY, **kwargs,
+    )
+
+
+def quantity_output_field(**kwargs):
+    """Quantity as a JSON number (3.5, 5) rather than the string "3.50"."""
+    return serializers.DecimalField(
+        max_digits=8, decimal_places=2, coerce_to_string=False, read_only=True, **kwargs,
+    )
 
 
 class BookingListSerializer(serializers.ModelSerializer):
@@ -19,13 +37,14 @@ class BookingListSerializer(serializers.ModelSerializer):
     customer_phone = serializers.CharField(source='customer.phone_number', read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True, default=None)
     category_name_translations = serializers.JSONField(source='category.name_translations', read_only=True, default=dict)
+    quantity = quantity_output_field()
 
     class Meta:
         model = Booking
         fields = [
             'id', 'booking_id', 'order_number', 'booking_type', 'status', 'payment_status',
             'service_title', 'category_name', 'category_name_translations', 'provider_name', 'customer_phone',
-            'scheduled_date', 'scheduled_time', 'quantity', 'price_unit', 'unit_price', 'total_amount', 'expires_at',
+            'scheduled_date', 'scheduled_time', 'quantity', 'price_unit', 'unit_price', 'discount_amount', 'total_amount', 'expires_at',
             'address', 'lat', 'lng', 'note', 'cancellation_reason',
             'broadcast_count', 'assigned_at', 'created_at',
             'otp_mode_snapshot',
@@ -49,6 +68,7 @@ class BookingDetailSerializer(serializers.ModelSerializer):
     cancelled_by = UserSerializer(read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True, default=None)
     category_name_translations = serializers.JSONField(source='category.name_translations', read_only=True, default=dict)
+    quantity = quantity_output_field()
 
     class Meta:
         model = Booking
@@ -60,7 +80,7 @@ class BookingDetailSerializer(serializers.ModelSerializer):
             'work_started_at', 'work_completed_at',
             'start_job_otp', 'end_job_otp', 'job_otp', 'otp_mode_snapshot',
             'address', 'lat', 'lng',
-            'quantity', 'price_unit', 'unit_price', 'total_amount',
+            'quantity', 'price_unit', 'unit_price', 'discount_amount', 'total_amount',
             'note', 'cancellation_reason', 'cancelled_by',
             'created_at', 'updated_at'
         ]
@@ -107,6 +127,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
     Serializer for Customers to create a new Booking.
     """
     service_id = serializers.IntegerField(write_only=True)
+    quantity = quantity_input_field(required=False)
     price_unit = serializers.CharField(
         required=False,
         allow_null=True,
@@ -151,7 +172,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         service = Service.objects.get(id=attrs['service_id'])
-        quantity = attrs.get('quantity', 1)
+        quantity = attrs.get('quantity', Decimal("1"))
         requested_unit = attrs.get('price_unit')
         
         # Check minimum order quantity
@@ -212,13 +233,15 @@ class BookingCreateSerializer(serializers.ModelSerializer):
         resolved_unit = requested_unit or (service.price_unit.key if service.price_unit else 'HOUR')
         
         # Create booking with snapshot pricing
+        quantity = validated_data.pop('quantity', Decimal("1"))
         booking = Booking.objects.create(
             customer=self.context['request'].user,
             service=service,
             provider=service.partner,
             price_unit=resolved_unit,
+            quantity=quantity,
             unit_price=service.price,
-            total_amount=service.price * validated_data.get('quantity', 1),
+            total_amount=(service.price * quantity).quantize(Decimal("0.01")),
             **validated_data
         )
         
@@ -304,7 +327,7 @@ class InstantBookingCreateSerializer(serializers.Serializer):
     Finds nearby providers, computes average price, creates broadcast requests.
     """
     category_id = serializers.IntegerField()
-    quantity = serializers.IntegerField(min_value=1)
+    quantity = quantity_input_field()
     price_unit = serializers.CharField(
         required=False,
         allow_null=True,
@@ -385,9 +408,10 @@ class InstantBookingRequestSerializer(serializers.ModelSerializer):
     address = serializers.CharField(source='booking.address', read_only=True)
     lat = serializers.DecimalField(source='booking.lat', max_digits=9, decimal_places=6, read_only=True)
     lng = serializers.DecimalField(source='booking.lng', max_digits=9, decimal_places=6, read_only=True)
-    quantity = serializers.IntegerField(source='booking.quantity', read_only=True)
+    quantity = quantity_output_field(source='booking.quantity')
     price_unit = serializers.CharField(source='booking.price_unit', read_only=True)
     unit_price = serializers.DecimalField(source='booking.unit_price', max_digits=10, decimal_places=2, read_only=True)
+    discount_amount = serializers.DecimalField(source='booking.discount_amount', max_digits=10, decimal_places=2, read_only=True)
     total_amount = serializers.DecimalField(source='booking.total_amount', max_digits=10, decimal_places=2, read_only=True)
     note = serializers.CharField(source='booking.note', read_only=True, default='')
     expires_at = serializers.DateTimeField(source='booking.expires_at', read_only=True)
@@ -400,7 +424,7 @@ class InstantBookingRequestSerializer(serializers.ModelSerializer):
             'id', 'booking_id', 'booking_type', 'booking_status', 'order_number',
             'category_name', 'service_title', 'customer_phone',
             'address', 'lat', 'lng',
-            'quantity', 'price_unit', 'unit_price', 'total_amount',
+            'quantity', 'price_unit', 'unit_price', 'discount_amount', 'total_amount',
             'note', 'expires_at', 'created_at',
             'status', 'distance_km', 'notified_at', 'response_deadline',
         ]

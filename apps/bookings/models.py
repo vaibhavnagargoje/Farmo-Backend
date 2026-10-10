@@ -1,8 +1,13 @@
+from decimal import Decimal
+
+from django.core.validators import MinValueValidator
 from django.db import models, transaction
 from django.conf import settings
 from django.utils import timezone
 from services.models import Service, Category
 from partners.models import PartnerProfile # Link to the Business, not just the User
+
+CENTS = Decimal("0.01")
 
 class Booking(models.Model):
     class BookingType(models.TextChoices):
@@ -109,7 +114,11 @@ class Booking(models.Model):
     lng = models.DecimalField(max_digits=9, decimal_places=6, null=True)
 
     # Financials (Snapshot Pattern)
-    quantity = models.PositiveIntegerField(default=1, help_text="Number of Hours/Acres/Km")
+    quantity = models.DecimalField(
+        max_digits=8, decimal_places=2, default=Decimal("1"),
+        validators=[MinValueValidator(CENTS)],
+        help_text="Number of Hours/Acres/Km (decimals allowed, e.g. 3.5 acres)"
+    )
     price_unit = models.CharField(
         max_length=20,
         default='HOUR',
@@ -120,7 +129,18 @@ class Booking(models.Model):
         max_digits=10, decimal_places=2, null=True, blank=True,
         help_text="System price before an agent overrode unit_price; empty when not overridden"
     )
+    discount_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal("0"),
+        help_text="Flat ₹ discount taken off quantity × unit price"
+    )
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    price_updated_at = models.DateTimeField(
+        null=True, blank=True, help_text="When an agent last changed quantity, rate or discount"
+    )
+    price_updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, related_name='price_updated_bookings',
+        null=True, blank=True, help_text="The admin/agent who last changed quantity, rate or discount"
+    )
     
     # Meta
     note = models.TextField(blank=True, null=True)
@@ -129,6 +149,23 @@ class Booking(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def subtotal(self):
+        """Quantity × unit price, before any discount."""
+        return (Decimal(self.unit_price or 0) * Decimal(self.quantity or 0)).quantize(CENTS)
+
+    @property
+    def quantity_display(self):
+        """Quantity without trailing zeros: 5, 3.5, 2.25."""
+        if self.quantity is None:
+            return ""
+        return format(Decimal(self.quantity).normalize(), "f")
+
+    def recalculate_total(self):
+        """total_amount = quantity × unit price − discount, never below zero."""
+        self.total_amount = max(Decimal("0"), self.subtotal - Decimal(self.discount_amount or 0))
+        return self.total_amount
 
     @property
     def is_expired(self):
@@ -201,7 +238,7 @@ class Booking(models.Model):
         
         # Auto-Calculate Total
         if not self.total_amount and self.unit_price and self.quantity:
-            self.total_amount = self.unit_price * self.quantity
+            self.recalculate_total()
             
         super().save(*args, **kwargs)
 
