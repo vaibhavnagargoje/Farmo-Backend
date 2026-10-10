@@ -1,53 +1,56 @@
 # apps/bookings/views.py
+from datetime import timedelta
+
 from rest_framework import status, generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import F
-import math
 
-from .models import Booking, InstantBookingRequest
-from services.models import Service, Category
-from partners.models import PartnerProfile
+from .models import Booking, BookingOffer, ProviderContact
 from .serializers import (
+    LEGACY_BOOKING_TYPE,
     BookingListSerializer,
     BookingDetailSerializer,
     BookingCreateSerializer,
     BookingStatusUpdateSerializer,
     BookingCancelSerializer,
-    InstantBookingCreateSerializer,
-    InstantBookingRequestSerializer,
+    BookingOfferSerializer,
+    ProviderContactCreateSerializer,
+    ProviderContactOutcomeSerializer,
+    ProviderContactSerializer,
+    PartnerContactSerializer,
 )
 
 
 # --- Customer Booking Views ---
-class CustomerBookingListView(generics.ListCreateAPIView):
+class CustomerBookingListView(generics.ListAPIView):
     """
     GET: List all bookings for the logged-in customer.
-    POST: Create a new booking.
+    POST: Legacy. Older app versions post the "Find yourself" call here after
+    the customer says the provider agreed. It is recorded as an agreed
+    ProviderContact, not a booking.
     """
+    serializer_class = BookingListSerializer
     permission_classes = [IsAuthenticated]
-
-    def get_serializer_class(self):
-        if self.request.method == 'POST':
-            return BookingCreateSerializer
-        return BookingListSerializer
 
     def get_queryset(self):
         return Booking.objects.filter(customer=self.request.user).order_by('-created_at')
 
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+    def post(self, request, *args, **kwargs):
+        data = request.data.copy()
+        data['outcome'] = ProviderContact.Outcome.AGREED
+        serializer = ProviderContactCreateSerializer(data=data, context={'request': request})
         if serializer.is_valid():
-            booking = serializer.save()
+            contact = serializer.save()
             return Response({
-                "message": "Booking created successfully. Waiting for provider confirmation.",
-                "booking": BookingDetailSerializer(booking, context={'request': request}).data
+                "message": "Thanks! We have noted that you found this provider.",
+                "booking": None,
+                "contact_id": contact.id,
             }, status=status.HTTP_201_CREATED)
-        
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -71,19 +74,19 @@ class CustomerBookingCancelView(APIView):
 
     def post(self, request, booking_id):
         booking = get_object_or_404(Booking, booking_id=booking_id, customer=request.user)
-        
+
         serializer = BookingCancelSerializer(data=request.data, context={'booking': booking})
         if serializer.is_valid():
             booking.status = Booking.Status.CANCELLED
             booking.cancellation_reason = serializer.validated_data['reason']
             booking.cancelled_by = request.user
             booking.save()
-            
+
             return Response({
                 "message": "Booking cancelled successfully.",
                 "booking": BookingListSerializer(booking).data
             })
-        
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -98,15 +101,15 @@ class ProviderBookingListView(generics.ListAPIView):
     def get_queryset(self):
         if not hasattr(self.request.user, 'partner_profile'):
             return Booking.objects.none()
-        
+
         status_filter = self.request.query_params.get('status')
         queryset = Booking.objects.filter(
             provider=self.request.user.partner_profile
         ).order_by('-created_at')
-        
+
         if status_filter:
             queryset = queryset.filter(status=status_filter.upper())
-        
+
         return queryset
 
 
@@ -119,7 +122,7 @@ class ProviderBookingDetailView(APIView):
     def get(self, request, booking_id):
         if not hasattr(request.user, 'partner_profile'):
             return Response({"error": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
-        
+
         booking = get_object_or_404(
             Booking,
             booking_id=booking_id,
@@ -131,43 +134,30 @@ class ProviderBookingDetailView(APIView):
 
 class ProviderBookingActionView(APIView):
     """
-    POST: Take action on a booking (accept/reject/start/complete).
+    POST: Start or complete an assigned booking.
+    (Providers accept a booking through its offer: provider/instant-requests/<id>/accept/.)
     """
     permission_classes = [IsAuthenticated]
 
     def post(self, request, booking_id):
         if not hasattr(request.user, 'partner_profile'):
             return Response({"error": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
-        
+
         booking = get_object_or_404(
             Booking,
             booking_id=booking_id,
             provider=request.user.partner_profile
         )
-        
+
         serializer = BookingStatusUpdateSerializer(
             data=request.data,
             context={'booking': booking}
         )
-        
+
         if serializer.is_valid():
             action = serializer.validated_data['action']
 
-            # Determine effective mode from the booking's snapshot
-            effective_mode = booking.otp_mode_snapshot or 'DUAL'
-
-            if action == 'accept':
-                booking.status = Booking.Status.CONFIRMED
-                # OTPs auto-generated in model's save() based on mode snapshot
-                message = "Booking accepted."
-
-            elif action == 'reject':
-                booking.status = Booking.Status.REJECTED
-                booking.cancellation_reason = serializer.validated_data.get('rejection_reason')
-                booking.cancelled_by = request.user
-                message = "Booking rejected."
-
-            elif action == 'start':
+            if action == 'start':
                 # Serializer already rejects 'start' in SINGLE mode — safe to proceed
                 booking.status = Booking.Status.IN_PROGRESS
                 booking.work_started_at = timezone.now()
@@ -203,55 +193,55 @@ class ProviderBookingCancelView(APIView):
     def post(self, request, booking_id):
         if not hasattr(request.user, 'partner_profile'):
             return Response({"error": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
-        
+
         booking = get_object_or_404(
             Booking,
             booking_id=booking_id,
             provider=request.user.partner_profile
         )
-        
+
         serializer = BookingCancelSerializer(data=request.data, context={'booking': booking})
         if serializer.is_valid():
             booking.status = Booking.Status.CANCELLED
             booking.cancellation_reason = serializer.validated_data['reason']
             booking.cancelled_by = request.user
             booking.save()
-            
+
             return Response({
                 "message": "Booking cancelled successfully.",
                 "booking": BookingListSerializer(booking).data
             })
-        
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# --- Instant Booking Views ---
-class InstantBookingCreateView(APIView):
+# --- Booking through Farmo ---
+class BookingCreateView(APIView):
     """
-    POST: Create an instant (quick) booking.
-    Finds nearby providers, computes avg price, creates broadcast requests.
+    POST: Create a booking through Farmo.
+    Prices it for the location and broadcasts offers to nearby providers.
     """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        serializer = InstantBookingCreateSerializer(
+        serializer = BookingCreateSerializer(
             data=request.data,
             context={'request': request}
         )
         if serializer.is_valid():
             booking = serializer.save()
-            nearby_count = booking.instant_requests.count()
+            nearby_count = booking.offers.count()
             return Response({
-                "message": f"Instant booking created. Searching {nearby_count} nearby providers...",
+                "message": f"Booking created. Searching {nearby_count} nearby providers...",
                 "booking": BookingDetailSerializer(booking, context={'request': request}).data,
                 "providers_notified": nearby_count,
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class InstantBookingStatusView(APIView):
+class BookingStatusView(APIView):
     """
-    GET: Poll the status of an instant booking.
+    GET: Poll the status of a booking's provider search.
     Auto-expires if past expiry time.
     """
     permission_classes = [IsAuthenticated]
@@ -261,23 +251,22 @@ class InstantBookingStatusView(APIView):
             Booking,
             booking_id=booking_id,
             customer=request.user,
-            booking_type=Booking.BookingType.INSTANT,
         )
 
         # Auto-expire if past expiry and still searching
         if booking.is_expired:
             booking.status = Booking.Status.EXPIRED
             booking.save(update_fields=['status'])
-            # Also expire all pending instant requests
-            booking.instant_requests.filter(
-                status=InstantBookingRequest.RequestStatus.PENDING
-            ).update(status=InstantBookingRequest.RequestStatus.EXPIRED)
+            # Also expire all pending offers
+            booking.offers.filter(
+                status=BookingOffer.Status.PENDING
+            ).update(status=BookingOffer.Status.EXPIRED)
 
         data = {
             "booking_id": booking.booking_id,
             "order_number": booking.order_number,
             "status": booking.status,
-            "booking_type": booking.booking_type,
+            "booking_type": LEGACY_BOOKING_TYPE,  # Deprecated
             "category_name": booking.category.name if booking.category else None,
             "quantity": float(booking.quantity),
             "price_unit": booking.price_unit,
@@ -289,9 +278,9 @@ class InstantBookingStatusView(APIView):
             "expires_at": booking.expires_at.isoformat() if booking.expires_at else None,
             "assigned_at": booking.assigned_at.isoformat() if booking.assigned_at else None,
             "created_at": booking.created_at.isoformat(),
-            "providers_notified": booking.instant_requests.count(),
-            "providers_declined": booking.instant_requests.filter(
-                status=InstantBookingRequest.RequestStatus.DECLINED
+            "providers_notified": booking.offers.count(),
+            "providers_declined": booking.offers.filter(
+                status=BookingOffer.Status.DECLINED
             ).count(),
         }
 
@@ -308,42 +297,42 @@ class InstantBookingStatusView(APIView):
         return Response(data)
 
 
-# --- Provider Instant Request Views ---
-class ProviderInstantRequestListView(generics.ListAPIView):
+# --- Provider Offer Views ---
+class ProviderOfferListView(generics.ListAPIView):
     """
-    GET: List all pending instant booking requests for the logged-in provider.
-    Only shows requests where booking is still SEARCHING (not expired/cancelled).
+    GET: List all pending booking offers for the logged-in provider.
+    Only shows offers whose booking is still SEARCHING (not expired/cancelled).
     """
-    serializer_class = InstantBookingRequestSerializer
+    serializer_class = BookingOfferSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         if not hasattr(self.request.user, 'partner_profile'):
-            return InstantBookingRequest.objects.none()
+            return BookingOffer.objects.none()
 
         partner = self.request.user.partner_profile
 
-        # Auto-expire requests whose booking has passed its expiry
+        # Auto-expire offers whose booking has passed its expiry
         now = timezone.now()
-        InstantBookingRequest.objects.filter(
+        BookingOffer.objects.filter(
             provider=partner,
-            status=InstantBookingRequest.RequestStatus.PENDING,
+            status=BookingOffer.Status.PENDING,
             booking__expires_at__lt=now,
             booking__status=Booking.Status.SEARCHING,
-        ).update(status=InstantBookingRequest.RequestStatus.EXPIRED, responded_at=now)
+        ).update(status=BookingOffer.Status.EXPIRED, responded_at=now)
 
-        return InstantBookingRequest.objects.filter(
+        return BookingOffer.objects.filter(
             provider=partner,
-            status=InstantBookingRequest.RequestStatus.PENDING,
+            status=BookingOffer.Status.PENDING,
             booking__status=Booking.Status.SEARCHING,
         ).select_related(
             'booking', 'booking__customer', 'booking__category', 'booking__service'
         ).order_by('distance_km', '-notified_at')
 
 
-class ProviderInstantRequestAcceptView(APIView):
+class ProviderOfferAcceptView(APIView):
     """
-    POST: Provider accepts an instant booking request.
+    POST: Provider accepts a booking offer.
     First-come-first-serve: uses select_for_update for atomicity.
     """
     permission_classes = [IsAuthenticated]
@@ -355,33 +344,33 @@ class ProviderInstantRequestAcceptView(APIView):
         partner = request.user.partner_profile
 
         with transaction.atomic():
-            # Lock the request row
+            # Lock the offer row
             try:
-                instant_req = InstantBookingRequest.objects.select_for_update().get(
+                offer = BookingOffer.objects.select_for_update().get(
                     pk=pk,
                     provider=partner,
                 )
-            except InstantBookingRequest.DoesNotExist:
+            except BookingOffer.DoesNotExist:
                 return Response(
                     {"error": "Request not found."},
                     status=status.HTTP_404_NOT_FOUND
                 )
 
-            # Check request is still pending
-            if instant_req.status != InstantBookingRequest.RequestStatus.PENDING:
+            # Check offer is still pending
+            if offer.status != BookingOffer.Status.PENDING:
                 return Response(
                     {"error": "This request has already been responded to."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
             # Lock and check the booking
-            booking = Booking.objects.select_for_update().get(pk=instant_req.booking_id)
+            booking = Booking.objects.select_for_update().get(pk=offer.booking_id)
 
             if booking.status != Booking.Status.SEARCHING:
                 # Another provider already accepted or booking expired
-                instant_req.status = InstantBookingRequest.RequestStatus.EXPIRED
-                instant_req.responded_at = timezone.now()
-                instant_req.save(update_fields=['status', 'responded_at'])
+                offer.status = BookingOffer.Status.EXPIRED
+                offer.responded_at = timezone.now()
+                offer.save(update_fields=['status', 'responded_at'])
                 return Response(
                     {"error": "This booking is no longer available — another provider may have accepted it."},
                     status=status.HTTP_409_CONFLICT
@@ -393,17 +382,17 @@ class ProviderInstantRequestAcceptView(APIView):
             booking.assigned_at = timezone.now()
             booking.save()  # This triggers OTP generation in model save()
 
-            # Mark this request as accepted
-            instant_req.status = InstantBookingRequest.RequestStatus.ACCEPTED
-            instant_req.responded_at = timezone.now()
-            instant_req.save(update_fields=['status', 'responded_at'])
+            # Mark this offer as accepted
+            offer.status = BookingOffer.Status.ACCEPTED
+            offer.responded_at = timezone.now()
+            offer.save(update_fields=['status', 'responded_at'])
 
-            # Expire all other pending requests for this booking
-            InstantBookingRequest.objects.filter(
+            # Expire all other pending offers for this booking
+            BookingOffer.objects.filter(
                 booking=booking,
-                status=InstantBookingRequest.RequestStatus.PENDING,
+                status=BookingOffer.Status.PENDING,
             ).exclude(pk=pk).update(
-                status=InstantBookingRequest.RequestStatus.EXPIRED,
+                status=BookingOffer.Status.EXPIRED,
                 responded_at=timezone.now(),
             )
 
@@ -414,9 +403,9 @@ class ProviderInstantRequestAcceptView(APIView):
         })
 
 
-class ProviderInstantRequestDeclineView(APIView):
+class ProviderOfferDeclineView(APIView):
     """
-    POST: Provider declines an instant booking request.
+    POST: Provider declines a booking offer.
     """
     permission_classes = [IsAuthenticated]
 
@@ -426,23 +415,99 @@ class ProviderInstantRequestDeclineView(APIView):
 
         partner = request.user.partner_profile
 
-        instant_req = get_object_or_404(
-            InstantBookingRequest,
+        offer = get_object_or_404(
+            BookingOffer,
             pk=pk,
             provider=partner,
         )
 
-        if instant_req.status != InstantBookingRequest.RequestStatus.PENDING:
+        if offer.status != BookingOffer.Status.PENDING:
             return Response(
                 {"error": "This request has already been responded to."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        instant_req.status = InstantBookingRequest.RequestStatus.DECLINED
-        instant_req.responded_at = timezone.now()
-        instant_req.save(update_fields=['status', 'responded_at'])
+        offer.status = BookingOffer.Status.DECLINED
+        offer.responded_at = timezone.now()
+        offer.save(update_fields=['status', 'responded_at'])
 
         return Response({"message": "Request declined."})
+
+
+# --- Direct provider contacts ("Find yourself") ---
+class ProviderContactCreateView(APIView):
+    """
+    POST: Record that the customer is calling a provider from a listing.
+    The answer after the call is sent to the outcome endpoint.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ProviderContactCreateSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            contact = serializer.save()
+            return Response(ProviderContactSerializer(contact).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ProviderContactOutcomeView(APIView):
+    """
+    POST: The customer's answer after the call: AGREED or NOT_AGREED.
+    Can be given once; repeating the same answer is accepted.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        serializer = ProviderContactOutcomeSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        outcome = serializer.validated_data['outcome']
+
+        with transaction.atomic():
+            contact = get_object_or_404(
+                ProviderContact.objects.select_for_update(), pk=pk, customer=request.user,
+            )
+            if contact.outcome == outcome:
+                return Response(ProviderContactSerializer(contact).data)
+            if contact.outcome != ProviderContact.Outcome.CALLED:
+                return Response(
+                    {"error": "This call already has an answer."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            contact.outcome = outcome
+            contact.responded_at = timezone.now()
+            contact.save(update_fields=['outcome', 'responded_at'])  # Signal notifies the provider on AGREED
+
+        return Response(ProviderContactSerializer(contact).data)
+
+
+class PartnerContactPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+class ProviderContactListView(generics.ListAPIView):
+    """
+    GET: Farmers who found the logged-in partner on Farmo and agreed on work.
+    ?days=N limits the list to the last N days.
+    """
+    serializer_class = PartnerContactSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = PartnerContactPagination
+
+    def get_queryset(self):
+        if not hasattr(self.request.user, 'partner_profile'):
+            return ProviderContact.objects.none()
+        queryset = ProviderContact.objects.filter(
+            provider=self.request.user.partner_profile,
+            outcome=ProviderContact.Outcome.AGREED,
+        ).select_related('customer__customer_profile', 'service', 'category').order_by('-created_at')
+
+        days = self.request.query_params.get('days', '')
+        if days.isdecimal() and int(days) > 0:
+            queryset = queryset.filter(created_at__gte=timezone.now() - timedelta(days=int(days)))
+        return queryset
 
 
 # --- App Settings (Public) ---

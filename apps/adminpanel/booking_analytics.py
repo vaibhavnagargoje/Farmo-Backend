@@ -9,7 +9,7 @@ from django.db.models.functions import TruncDate
 from django.urls import reverse
 from django.utils import timezone
 
-from bookings.models import Booking
+from bookings.models import Booking, ProviderContact
 
 PERIODS = [("today", "Today"), ("7d", "7 days"), ("30d", "30 days"), ("month", "This month"), ("custom", "Custom")]
 MAX_RANGE_DAYS = 366
@@ -43,10 +43,9 @@ def previous_period(start, end):
 
 
 def needs_attention_q(now=None):
-    """Instant orders whose provider search ran out while the job is still upcoming."""
+    """Orders whose provider search ran out while the job is still upcoming."""
     now = now or timezone.now()
     return Q(
-        booking_type=Booking.BookingType.INSTANT,
         provider__isnull=True,
         scheduled_date__gte=timezone.localdate(),
     ) & (
@@ -58,13 +57,14 @@ def needs_attention_q(now=None):
 def live_counts():
     """Right-now counts, independent of any period (tiles link to filtered lists)."""
     now = timezone.now()
-    return Booking.objects.aggregate(
+    counts = Booking.objects.aggregate(
         new_today=Count("id", filter=Q(created_at__date=timezone.localdate())),
         searching=Count("id", filter=Q(status=Booking.Status.SEARCHING) & (Q(expires_at__isnull=True) | Q(expires_at__gte=now))),
         active=Count("id", filter=Q(status__in=(Booking.Status.CONFIRMED, Booking.Status.IN_PROGRESS))),
-        pending_scheduled=Count("id", filter=Q(booking_type=Booking.BookingType.SCHEDULED, status=Booking.Status.PENDING)),
         needs_attention=Count("id", filter=needs_attention_q(now)),
     )
+    counts["contacts_today"] = ProviderContact.objects.filter(created_at__date=timezone.localdate()).count()
+    return counts
 
 
 ACTIVE_FILTER = "ACTIVE"  # list pseudo-status: confirmed or in progress
@@ -84,8 +84,8 @@ def live_tiles():
          "url": orders + "?attention=1", "alert": True},
         {"label": "Active", "value": live["active"], "hint": "assigned or in progress",
          "url": orders + "?" + urlencode({"status": ACTIVE_FILTER})},
-        {"label": "Pending scheduled", "value": live["pending_scheduled"], "hint": "awaiting provider reply",
-         "url": reverse("adminpanel:bookings-scheduled") + "?" + urlencode({"status": Booking.Status.PENDING})},
+        {"label": "Direct contacts", "value": live["contacts_today"], "hint": "farmers who called a provider today",
+         "url": reverse("adminpanel:provider-contacts") + "?" + urlencode({"from": today, "to": today})},
     ]
 
 
@@ -94,23 +94,21 @@ def _period_qs(start, end):
 
 
 def period_stats(start, end):
-    instant = Q(booking_type=Booking.BookingType.INSTANT)
     stats = _period_qs(start, end).aggregate(
         total=Count("id"),
         completed=Count("id", filter=Q(status=Booking.Status.COMPLETED)),
         cancelled=Count("id", filter=Q(status=Booking.Status.CANCELLED)),
-        instant=Count("id", filter=instant),
-        instant_assigned=Count("id", filter=instant & Q(provider__isnull=False)),
+        assigned=Count("id", filter=Q(provider__isnull=False)),
         by_phone=Count("id", filter=Q(created_by_agent__isnull=False)),
         gmv=Sum("total_amount", filter=Q(status=Booking.Status.COMPLETED)),
         avg_assign=Avg(
             ExpressionWrapper(F("assigned_at") - F("created_at"), output_field=DurationField()),
-            filter=instant & Q(assigned_at__isnull=False),
+            filter=Q(assigned_at__isnull=False),
         ),
     )
-    total, instant_total = stats["total"], stats["instant"]
+    total = stats["total"]
     stats["gmv"] = stats["gmv"] or 0
-    stats["fulfilment_rate"] = round(100 * stats["instant_assigned"] / instant_total, 1) if instant_total else None
+    stats["fulfilment_rate"] = round(100 * stats["assigned"] / total, 1) if total else None
     stats["cancellation_rate"] = round(100 * stats["cancelled"] / total, 1) if total else None
     avg = stats.pop("avg_assign")
     stats["avg_assign_minutes"] = round(avg.total_seconds() / 60, 1) if avg is not None else None
@@ -143,7 +141,7 @@ def kpis(start, end):
     return current, [
         tile("total", "Bookings", count),
         tile("completed", "Completed", count),
-        tile("fulfilment_rate", "Instant fulfilment", percent, points),
+        tile("fulfilment_rate", "Fulfilment", percent, points),
         tile("cancellation_rate", "Cancellation rate", percent, points, higher_is_better=False),
         tile("gmv", "Completed value", rupees),
         tile("avg_assign_minutes", "Avg. time to assign", minutes, higher_is_better=False),
@@ -163,36 +161,35 @@ def _nice_ticks(peak, count=4):
 def trend_series(start, end, max_labels=8):
     """
     Bookings per created day (per week for ranges over 62 days), split by
-    type, with empty buckets kept so gaps show. Includes y-axis ticks.
+    source (placed in the app or by an agent on a phone call), with empty
+    buckets kept so gaps show. Includes y-axis ticks.
     """
     weekly = (end - start).days + 1 > 62
     rows = (
         _period_qs(start, end)
         .annotate(day=TruncDate("created_at"))
-        .values("day", "booking_type")
-        .annotate(n=Count("id"))
+        .values("day")
+        .annotate(n=Count("id"), phone=Count("id", filter=Q(created_by_agent__isnull=False)))
     )
-    by_day = {}
-    for row in rows:
-        by_day.setdefault(row["day"], {})[row["booking_type"]] = row["n"]
+    by_day = {row["day"]: {"app": row["n"] - row["phone"], "phone": row["phone"]} for row in rows}
 
     buckets = []
     day = start - timedelta(days=start.weekday()) if weekly else start
     while day <= end:
         last = min(day + timedelta(days=6 if weekly else 0), end)
         first = max(day, start)
-        instant = scheduled = 0
+        app = phone = 0
         d = first
         while d <= last:
             counts = by_day.get(d, {})
-            instant += counts.get(Booking.BookingType.INSTANT, 0)
-            scheduled += counts.get(Booking.BookingType.SCHEDULED, 0)
+            app += counts.get("app", 0)
+            phone += counts.get("phone", 0)
             d += timedelta(days=1)
         buckets.append({
             "label": ("Week of " if weekly else "") + first.strftime("%d %b"),
             "short_label": first.strftime("%d %b"),
             "from": first.isoformat(), "to": last.isoformat(),
-            "instant": instant, "scheduled": scheduled, "total": instant + scheduled,
+            "app": app, "phone": phone, "total": app + phone,
         })
         day = last + timedelta(days=1)
 

@@ -1,8 +1,8 @@
-"""Instant booking creation and provider broadcast.
+"""Booking creation, provider broadcast, and direct provider contacts.
 
-Shared by the customer API (InstantBookingCreateSerializer) and the admin
-panel's Quick Book, so an order placed by phone reaches the same providers at
-the same price as one placed in the app.
+Shared by the customer API and the admin panel's Quick Book, so an order
+placed by phone reaches the same providers at the same price as one placed in
+the app.
 """
 
 from datetime import timedelta
@@ -15,13 +15,13 @@ from django.utils import timezone
 
 from services.models import Service
 
-from .models import Booking, InstantBookingRequest
+from .models import Booking, BookingOffer, ProviderContact
 
-ACTIVE_INSTANT_STATUSES = (Booking.Status.SEARCHING, Booking.Status.CONFIRMED, Booking.Status.IN_PROGRESS)
+ACTIVE_STATUSES = (Booking.Status.SEARCHING, Booking.Status.CONFIRMED, Booking.Status.IN_PROGRESS)
 CENTS = Decimal("0.01")
 
 
-class InstantBookingError(Exception):
+class BookingError(Exception):
     """The booking cannot be placed as requested; the message is user-facing."""
 
 
@@ -72,25 +72,24 @@ def find_nearby_services(category, lat, lng, radius_km):
 
 
 def count_nearby_partners(category, lat, lng):
-    """How many providers a new instant booking at this spot would notify."""
+    """How many providers a new booking at this spot would notify."""
     return (
         find_nearby_services(category, lat, lng, category.instant_search_radius_km)
         .values('partner_id').distinct().count()
     )
 
 
-def active_instant_booking(customer, category):
-    """The customer's open instant booking in this category, if any (one at a time)."""
+def active_booking(customer, category):
+    """The customer's open booking in this category, if any (one at a time)."""
     return Booking.objects.filter(
         customer=customer,
-        booking_type=Booking.BookingType.INSTANT,
         category_id=getattr(category, 'pk', category),
-        status__in=ACTIVE_INSTANT_STATUSES,
+        status__in=ACTIVE_STATUSES,
     ).first()
 
 
 def _broadcast(booking, broadcast_round):
-    """Create one request per nearby partner; the post_save signal sends the push."""
+    """Create one offer per nearby partner; the post_save signal sends the push."""
     category = booking.category
     nearby = find_nearby_services(category, booking.lat, booking.lng, category.instant_search_radius_km)
     seen = set()
@@ -98,7 +97,7 @@ def _broadcast(booking, broadcast_round):
         if service.partner_id in seen:
             continue
         seen.add(service.partner_id)
-        InstantBookingRequest.objects.create(
+        BookingOffer.objects.create(
             booking=booking,
             provider=service.partner,
             broadcast_round=broadcast_round,
@@ -108,12 +107,12 @@ def _broadcast(booking, broadcast_round):
     return len(seen)
 
 
-def create_instant_booking(*, customer, category, lat, lng, address, quantity, note='',
-                           scheduled_date=None, scheduled_time=None,
-                           unit_price_override=None, created_by_agent=None):
+def create_booking(*, customer, category, lat, lng, address, quantity, note='',
+                   scheduled_date=None, scheduled_time=None,
+                   unit_price_override=None, created_by_agent=None):
     """
-    Price the job for its location, create a SEARCHING instant booking and
-    notify nearby providers. Returns ``(booking, providers_notified)``.
+    Price the job for its location, create a SEARCHING booking and notify
+    nearby providers. Returns ``(booking, providers_notified)``.
 
     ``unit_price_override`` lets an agent agree a different price on a call;
     the system price is then kept in ``original_unit_price``.
@@ -122,20 +121,19 @@ def create_instant_booking(*, customer, category, lat, lng, address, quantity, n
 
     system_price, price_unit, _zone = resolve_instant_price(category, lat, lng)
     if system_price <= 0:
-        raise InstantBookingError("Instant booking price is not configured for this category.")
+        raise BookingError("Booking price is not configured for this category.")
     unit_price = Decimal(str(system_price)).quantize(CENTS)
     original_unit_price = None
     if unit_price_override is not None:
         override = Decimal(str(unit_price_override)).quantize(CENTS)
         if override <= 0:
-            raise InstantBookingError("Unit price must be greater than zero.")
+            raise BookingError("Unit price must be greater than zero.")
         if override != unit_price:
             original_unit_price, unit_price = unit_price, override
 
     now = timezone.localtime(timezone.now())
     with transaction.atomic():
         booking = Booking.objects.create(
-            booking_type=Booking.BookingType.INSTANT,
             customer=customer,
             category=category,
             status=Booking.Status.SEARCHING,
@@ -159,27 +157,25 @@ def create_instant_booking(*, customer, category, lat, lng, address, quantity, n
     return booking, providers_notified
 
 
-def rebroadcast_instant_booking(booking):
+def rebroadcast_booking(booking):
     """
-    Search again for an instant booking nobody accepted: reopen it with a
-    fresh timeout and notify nearby providers in a new broadcast round.
+    Search again for a booking nobody accepted: reopen it with a fresh
+    timeout and notify nearby providers in a new broadcast round.
     Returns ``(booking, providers_notified)``.
     """
     with transaction.atomic():
         booking = Booking.objects.select_for_update().get(pk=booking.pk)
-        if booking.booking_type != Booking.BookingType.INSTANT or booking.status not in (
-            Booking.Status.SEARCHING, Booking.Status.EXPIRED,
-        ):
-            raise InstantBookingError("Only unassigned instant orders can be searched again.")
+        if booking.status not in (Booking.Status.SEARCHING, Booking.Status.EXPIRED):
+            raise BookingError("Only unassigned orders can be searched again.")
         if booking.category is None:
-            raise InstantBookingError("This order has no category.")
+            raise BookingError("This order has no category.")
         if booking.lat is None or booking.lng is None:
-            raise InstantBookingError("This order has no map location.")
+            raise BookingError("This order has no map location.")
 
         now = timezone.now()
-        booking.instant_requests.filter(
-            status=InstantBookingRequest.RequestStatus.PENDING,
-        ).update(status=InstantBookingRequest.RequestStatus.EXPIRED, responded_at=now)
+        booking.offers.filter(
+            status=BookingOffer.Status.PENDING,
+        ).update(status=BookingOffer.Status.EXPIRED, responded_at=now)
         booking.status = Booking.Status.SEARCHING
         booking.expires_at = now + timedelta(minutes=booking.category.instant_timeout_minutes)
         booking.broadcast_count += 1
@@ -189,3 +185,31 @@ def rebroadcast_instant_booking(booking):
         ])
         providers_notified = _broadcast(booking, broadcast_round=booking.broadcast_count)
     return booking, providers_notified
+
+
+def create_provider_contact(*, customer, service, quantity=None, price_unit='', note='',
+                            address='', lat=None, lng=None,
+                            outcome=ProviderContact.Outcome.CALLED):
+    """
+    Record that *customer* called the provider behind *service* directly.
+    Provider, category and listed price are snapshotted from the service.
+    Pass an outcome when the customer's answer is already known.
+    """
+    if service.status != Service.Status.ACTIVE:
+        raise BookingError("This service is not available.")
+    answered = outcome != ProviderContact.Outcome.CALLED
+    return ProviderContact.objects.create(
+        customer=customer,
+        provider_id=service.partner_id,
+        service=service,
+        category_id=service.category_id,
+        quantity=quantity,
+        price_unit=price_unit or (service.price_unit.key if service.price_unit else ''),
+        listed_unit_price=service.price,
+        note=note or '',
+        address=address or '',
+        lat=lat,
+        lng=lng,
+        outcome=outcome,
+        responded_at=timezone.now() if answered else None,
+    )

@@ -1,43 +1,56 @@
+from decimal import Decimal
+
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
-from bookings.models import InstantBookingRequest, Booking
+from bookings.models import BookingOffer, Booking, ProviderContact
 from .models import Notification
 from .utils import send_push_notification
 
 
-# 0. Notify Provider when a direct booking is created
-@receiver(post_save, sender=Booking)
-def notify_provider_on_direct_booking(sender, instance, created, **kwargs):
-    # Direct bookings are created with a concrete provider and are not instant SEARCHING flows.
-    if not created:
+# 0. Notify Provider when a farmer who found them on Farmo says they agreed on work
+@receiver(pre_save, sender=ProviderContact)
+def cache_previous_contact_outcome(sender, instance, **kwargs):
+    if not instance.pk:
+        instance._previous_outcome = None
         return
-    if instance.booking_type == Booking.BookingType.INSTANT:
+    previous = ProviderContact.objects.filter(pk=instance.pk).values('outcome').first()
+    instance._previous_outcome = previous['outcome'] if previous else None
+
+
+@receiver(post_save, sender=ProviderContact)
+def notify_provider_on_agreed_contact(sender, instance, **kwargs):
+    if instance.outcome != ProviderContact.Outcome.AGREED:
         return
-    if not instance.provider:
+    if getattr(instance, '_previous_outcome', None) == ProviderContact.Outcome.AGREED:
         return
 
     provider_user = instance.provider.user
-    service_name = instance.service.title if instance.service else "new service"
+    service_name = instance.service.title if instance.service else (
+        instance.category.name if instance.category else "your service"
+    )
+    work = ""
+    if instance.quantity:
+        quantity = format(Decimal(instance.quantity).normalize(), "f")
+        work = f" for {quantity} {instance.price_unit.lower()}".rstrip()
+    message = f"A farmer found you on Farmo and agreed on {service_name} work{work}."
 
     Notification.objects.create(
         user=provider_user,
-        title="New Direct Booking!",
-        message=f"A farmer directly booked your {service_name} service.",
-        booking_id=instance.booking_id,
+        title="A farmer found you on Farmo!",
+        message=message,
         notification_type=Notification.NotificationType.PROVIDER_JOB,
     )
-
     send_push_notification(
         user=provider_user,
-        title="New Direct Booking!",
-        body=f"A farmer directly booked your {service_name} service. Tap to view details.",
-        data={"booking_id": str(instance.booking_id), "type": "direct_booking"},
+        title="A farmer found you on Farmo!",
+        body=f"{message} Tap to see their details.",
+        data={"type": "direct_contact", "contact_id": str(instance.pk)},
     )
 
-# 1. Notify Provider when a new job is available (SEARCHING -> created InstantBookingRequest)
-@receiver(post_save, sender=InstantBookingRequest)
+# 1. Notify Provider when a new job is available (SEARCHING -> created BookingOffer)
+@receiver(post_save, sender=BookingOffer)
 def notify_provider_of_new_job(sender, instance, created, **kwargs):
-    if created and instance.status == InstantBookingRequest.RequestStatus.PENDING:
+    if created and instance.status == BookingOffer.Status.PENDING:
         provider_user = instance.provider.user
         
         # Save to DB for the Bell Icon

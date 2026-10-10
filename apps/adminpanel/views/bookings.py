@@ -1,4 +1,5 @@
-"""Bookings section pages: overview analytics, order lists, detail and export.
+"""Bookings section pages: overview analytics, order lists, detail, export,
+and the list of direct provider contacts.
 
 Quick Book endpoints live in quick_book.py; state changes on a booking
 (assign, cancel, complete, retry search) live in booking_actions.py.
@@ -11,14 +12,14 @@ from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import user_passes_test
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import Http404, StreamingHttpResponse
 from django.shortcuts import render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET
 
-from bookings.models import Booking, InstantBookingRequest
+from bookings.models import Booking, BookingOffer, ProviderContact
 from services.models import Category, Service, ServicePriceUnit
 
 from .. import booking_analytics as analytics
@@ -31,12 +32,7 @@ PAGE_SIZE = 25
 FILTER_KEYS = ("q", "status", "category", "source", "attention", "date_field", "from", "to")
 ACTIVE_FILTER = analytics.ACTIVE_FILTER
 
-# url name → (booking_type filter, page heading)
-LIST_TABS = {
-    "bookings-list": (None, "All orders"),
-    "bookings-instant": (Booking.BookingType.INSTANT, "Instant orders"),
-    "bookings-scheduled": (Booking.BookingType.SCHEDULED, "Scheduled orders"),
-}
+CONTACT_FILTER_KEYS = ("q", "outcome", "category", "from", "to")
 
 
 def _query(params):
@@ -89,14 +85,12 @@ def bookings_overview(request):
 
 # ── Lists ──────────────────────────────────────────────────────────────────
 
-def filtered_bookings(params, booking_type=None):
+def filtered_bookings(params):
     """Bookings matching the list filters, newest first, plus the cleaned filter values."""
     filters = {key: (params.get(key) or "").strip() for key in FILTER_KEYS}
     qs = Booking.objects.select_related(
         "customer__customer_profile", "category", "provider__user", "service", "created_by_agent",
     )
-    if booking_type:
-        qs = qs.filter(booking_type=booking_type)
 
     q = filters["q"]
     if q:
@@ -173,23 +167,20 @@ def _filter_chips(filters, base_url):
 @user_passes_test(is_agent, login_url=LOGIN_URL)
 @require_GET
 def bookings_list(request):
-    url_name = request.resolver_match.url_name
-    booking_type, heading = LIST_TABS[url_name]
-    base_url = reverse(f"adminpanel:{url_name}")
-    qs, filters = filtered_bookings(request.GET, booking_type)
+    heading = "All orders"
+    base_url = reverse("adminpanel:bookings-list")
+    qs, filters = filtered_bookings(request.GET)
     page_obj = Paginator(qs, PAGE_SIZE).get_page(request.GET.get("page"))
     query = _query(filters)
-    export_params = {**filters, "type": booking_type or ""}
     return render(request, "adminpanel/bookings_list.html", {
         "page_title": heading,
         "heading": heading,
-        "booking_type": booking_type,
         "page_obj": page_obj,
         "filters": filters,
         "chips": _filter_chips(filters, base_url),
         "base_url": base_url,
         "page_prefix": (query + "&" if query else "?") + "page=",
-        "export_url": reverse("adminpanel:bookings-export") + _query(export_params),
+        "export_url": reverse("adminpanel:bookings-export") + query,
         "status_choices": [*Booking.Status.choices, (ACTIVE_FILTER, "Active (assigned or in progress)")],
         "categories": Category.objects.order_by("name"),
         "advanced_count": sum(bool(filters[k]) for k in ("status", "category", "source", "from", "to")),
@@ -212,7 +203,7 @@ def _cell(value):
 
 
 EXPORT_COLUMNS = [
-    "Booking ID", "Order number", "Type", "Status", "Source", "Created by agent",
+    "Booking ID", "Order number", "Status", "Source", "Created by agent",
     "Customer name", "Customer phone", "Category", "Service", "Provider", "Provider phone",
     "Quantity", "Unit", "Unit price", "Original unit price", "Subtotal", "Discount", "Total amount", "Payment status",
     "Address", "Latitude", "Longitude", "Work date", "Work time",
@@ -224,7 +215,7 @@ def _export_row(b):
     local = lambda dt: timezone.localtime(dt).strftime("%Y-%m-%d %H:%M") if dt else ""
     provider = b.provider
     return [
-        b.booking_id, b.order_number, b.get_booking_type_display(), b.get_status_display(),
+        b.booking_id, b.order_number, b.get_status_display(),
         "Phone" if b.created_by_agent_id else "App",
         b.created_by_agent.phone_number if b.created_by_agent_id else "",
         user_name(b.customer), b.customer.phone_number,
@@ -243,8 +234,7 @@ def _export_row(b):
 @user_passes_test(is_agent, login_url=LOGIN_URL)
 @require_GET
 def bookings_export(request):
-    booking_type = request.GET.get("type")
-    qs, _filters = filtered_bookings(request.GET, booking_type if booking_type in Booking.BookingType.values else None)
+    qs, _filters = filtered_bookings(request.GET)
     writer = csv.writer(_Echo())
 
     def rows():
@@ -290,12 +280,12 @@ def booking_detail(request, booking_id):
     if booking is None:
         raise Http404("Booking not found")
 
-    requests = InstantBookingRequest.objects.filter(booking=booking).select_related(
+    requests = BookingOffer.objects.filter(booking=booking).select_related(
         "provider__user",
     ).order_by("-broadcast_round", "distance_km", "id")
-    is_open = booking.status in (Booking.Status.PENDING, Booking.Status.SEARCHING, Booking.Status.CONFIRMED)
+    is_open = booking.status in (Booking.Status.SEARCHING, Booking.Status.CONFIRMED)
     can_assign = is_open and not booking.is_expired
-    can_rebroadcast = booking.booking_type == Booking.BookingType.INSTANT and booking.provider_id is None and (
+    can_rebroadcast = booking.provider_id is None and (
         booking.status == Booking.Status.EXPIRED or (booking.status == Booking.Status.SEARCHING and booking.is_expired)
     )
     eligible, other = _assignment_candidates(booking) if can_assign else ([], [])
@@ -331,4 +321,90 @@ def booking_detail(request, booking_id):
         "eligible_partners": eligible,
         "other_partners": other,
         "maps_url": f"https://www.google.com/maps?q={booking.lat},{booking.lng}" if booking.lat is not None and booking.lng is not None else "",
+    })
+
+
+# ── Direct provider contacts ("Find yourself") ─────────────────────────────
+
+def filtered_contacts(params):
+    """Contacts matching the list filters, newest first, plus the cleaned filter values."""
+    filters = {key: (params.get(key) or "").strip() for key in CONTACT_FILTER_KEYS}
+    qs = ProviderContact.objects.select_related(
+        "customer__customer_profile", "provider__user", "service", "category",
+    )
+
+    q = filters["q"]
+    if q:
+        condition = (
+            Q(customer__customer_profile__full_name__icontains=q)
+            | Q(provider__business_name__icontains=q)
+            | Q(service__title__icontains=q)
+            | Q(legacy_booking_id__icontains=q)
+        )
+        digits = re.sub(r"\D", "", q)
+        if len(digits) >= 3:
+            condition |= Q(customer__phone_number__contains=digits[-10:]) | Q(provider__user__phone_number__contains=digits[-10:])
+        qs = qs.filter(condition)
+
+    if filters["outcome"] not in ProviderContact.Outcome.values:
+        filters["outcome"] = ""
+    elif filters["outcome"]:
+        qs = qs.filter(outcome=filters["outcome"])
+    if filters["category"].isdecimal():
+        qs = qs.filter(category_id=filters["category"])
+    else:
+        filters["category"] = ""
+    for key, lookup in (("from", "gte"), ("to", "lte")):
+        day = _parse_date(filters[key])
+        if day:
+            qs = qs.filter(**{f"created_at__date__{lookup}": day})
+        else:
+            filters[key] = ""
+    return qs.order_by("-created_at"), filters
+
+
+def _contact_chips(filters, base_url):
+    """Removable chips describing the active contact filters."""
+    chips = []
+
+    def chip(text, *keys):
+        rest = {k: v for k, v in filters.items() if k not in keys}
+        chips.append({"label": text, "remove_url": base_url + _query(rest)})
+
+    if filters["q"]:
+        chip(f'Search: "{filters["q"]}"', "q")
+    if filters["outcome"]:
+        chip(dict(ProviderContact.Outcome.choices)[filters["outcome"]], "outcome")
+    if filters["category"]:
+        name = Category.objects.filter(pk=filters["category"]).values_list("name", flat=True).first()
+        chip(name or "Category", "category")
+    if filters["from"] or filters["to"]:
+        chip(f'Called: {filters["from"] or "…"} → {filters["to"] or "…"}', "from", "to")
+    return chips
+
+
+@user_passes_test(is_agent, login_url=LOGIN_URL)
+@require_GET
+def provider_contacts_list(request):
+    """Farmers who found a provider in the app and called them directly."""
+    base_url = reverse("adminpanel:provider-contacts")
+    qs, filters = filtered_contacts(request.GET)
+    page_obj = Paginator(qs, PAGE_SIZE).get_page(request.GET.get("page"))
+    query = _query(filters)
+    summary = qs.aggregate(
+        agreed=Count("id", filter=Q(outcome=ProviderContact.Outcome.AGREED)),
+        not_agreed=Count("id", filter=Q(outcome=ProviderContact.Outcome.NOT_AGREED)),
+        no_answer=Count("id", filter=Q(outcome=ProviderContact.Outcome.CALLED)),
+    )
+    return render(request, "adminpanel/provider_contacts_list.html", {
+        "page_title": "Direct contacts",
+        "page_obj": page_obj,
+        "filters": filters,
+        "chips": _contact_chips(filters, base_url),
+        "summary": summary,
+        "base_url": base_url,
+        "page_prefix": (query + "&" if query else "?") + "page=",
+        "outcome_choices": ProviderContact.Outcome.choices,
+        "categories": Category.objects.order_by("name"),
+        "advanced_count": sum(bool(filters[k]) for k in ("outcome", "category", "from", "to")),
     })

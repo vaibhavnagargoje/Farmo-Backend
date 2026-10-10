@@ -160,15 +160,11 @@ def agent_worker_calendar(request, user_id):
 
     month_name = cal_module.month_name[month]
 
-    from bookings.models import Booking, InstantBookingRequest
-    pending_scheduled_bookings = Booking.objects.filter(
-        provider=partner_profile, 
-        status__in=[Booking.Status.PENDING, Booking.Status.SEARCHING]
-    ).select_related('customer', 'customer__customer_profile', 'service', 'category').order_by('scheduled_date', '-created_at')
-
-    pending_instant_requests = InstantBookingRequest.objects.filter(
-        provider=partner_profile, 
-        status=InstantBookingRequest.RequestStatus.PENDING
+    from bookings.models import Booking, BookingOffer
+    pending_offers = BookingOffer.objects.filter(
+        provider=partner_profile,
+        status=BookingOffer.Status.PENDING,
+        booking__status=Booking.Status.SEARCHING,
     ).select_related(
         'booking', 'booking__customer', 'booking__customer__customer_profile', 
         'booking__service', 'booking__category'
@@ -194,9 +190,8 @@ def agent_worker_calendar(request, user_id):
         "next_year": next_year,
         "next_month": next_month,
         "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-        "pending_scheduled_bookings": pending_scheduled_bookings,
-        "pending_instant_requests": pending_instant_requests,
-        "active_bookings": active_bookings,
+        "pending_offers": pending_offers,
+"active_bookings": active_bookings,
     }
     return render(request, "adminpanel/partner_calendar.html", context)
 
@@ -276,9 +271,9 @@ def agent_toggle_busy_day(request, user_id):
 @user_passes_test(is_agent, login_url='/api/v1/admin/login/')
 def agent_worker_booking_action(request, user_id):
     """
-    Allow an admin to accept or reject a booking on behalf of the partner.
+    Allow an admin to accept or decline a booking offer on behalf of the partner.
     """
-    from bookings.models import Booking, InstantBookingRequest
+    from bookings.models import Booking, BookingOffer
 
     user = get_object_or_404(User, pk=user_id)
     try:
@@ -287,48 +282,32 @@ def agent_worker_booking_action(request, user_id):
         messages.error(request, 'This user has no partner profile.')
         return redirect('adminpanel:worker-calendar', user_id=user_id)
 
-    booking_id = request.POST.get('booking_id')
     req_id = request.POST.get('request_id')
     action = request.POST.get('action') # 'accept' or 'reject'
-    booking_type = request.POST.get('type') # 'scheduled' or 'instant'
 
     if action not in ['accept', 'reject']:
         messages.error(request, 'Invalid action.')
         return redirect('adminpanel:worker-calendar', user_id=user_id)
 
-    if booking_type == 'scheduled' and booking_id:
-        booking = get_object_or_404(Booking, booking_id=booking_id, provider=partner_profile)
-        if action == 'accept':
-            booking.status = Booking.Status.CONFIRMED
-            booking.accepted_by_agent = request.user
-            booking.save()
-            messages.success(request, f'Scheduled Booking {booking_id} accepted on behalf of partner.')
-        elif action == 'reject':
-            booking.status = Booking.Status.REJECTED
-            booking.cancelled_by = request.user
-            booking.cancellation_reason = 'Rejected by agent on behalf of provider'
-            booking.save()
-            messages.success(request, f'Scheduled Booking {booking_id} rejected.')
-
-    elif booking_type == 'instant' and req_id:
+    if req_id and req_id.isdecimal():
         with transaction.atomic():
             try:
-                instant_req = InstantBookingRequest.objects.select_for_update().get(pk=req_id, provider=partner_profile)
-            except InstantBookingRequest.DoesNotExist:
+                offer = BookingOffer.objects.select_for_update().get(pk=req_id, provider=partner_profile)
+            except BookingOffer.DoesNotExist:
                 messages.error(request, 'Request not found.')
                 return redirect('adminpanel:worker-calendar', user_id=user_id)
 
-            if instant_req.status != InstantBookingRequest.RequestStatus.PENDING:
+            if offer.status != BookingOffer.Status.PENDING:
                 messages.error(request, 'This request has already been responded to.')
                 return redirect('adminpanel:worker-calendar', user_id=user_id)
 
-            booking = Booking.objects.select_for_update().get(pk=instant_req.booking_id)
+            booking = Booking.objects.select_for_update().get(pk=offer.booking_id)
 
             if action == 'accept':
                 if booking.status != Booking.Status.SEARCHING:
-                    instant_req.status = InstantBookingRequest.RequestStatus.EXPIRED
-                    instant_req.responded_at = timezone.now()
-                    instant_req.save(update_fields=['status', 'responded_at'])
+                    offer.status = BookingOffer.Status.EXPIRED
+                    offer.responded_at = timezone.now()
+                    offer.save(update_fields=['status', 'responded_at'])
                     messages.error(request, 'This booking is no longer available.')
                     return redirect('adminpanel:worker-calendar', user_id=user_id)
 
@@ -338,23 +317,23 @@ def agent_worker_booking_action(request, user_id):
                 booking.accepted_by_agent = request.user
                 booking.save()
 
-                instant_req.status = InstantBookingRequest.RequestStatus.ACCEPTED
-                instant_req.responded_at = timezone.now()
-                instant_req.save(update_fields=['status', 'responded_at'])
+                offer.status = BookingOffer.Status.ACCEPTED
+                offer.responded_at = timezone.now()
+                offer.save(update_fields=['status', 'responded_at'])
 
                 # Expire others
-                InstantBookingRequest.objects.filter(
-                    booking=booking, status=InstantBookingRequest.RequestStatus.PENDING
+                BookingOffer.objects.filter(
+                    booking=booking, status=BookingOffer.Status.PENDING
                 ).exclude(pk=req_id).update(
-                    status=InstantBookingRequest.RequestStatus.EXPIRED, responded_at=timezone.now()
+                    status=BookingOffer.Status.EXPIRED, responded_at=timezone.now()
                 )
-                messages.success(request, 'Instant Booking accepted on behalf of partner.')
+                messages.success(request, f'Booking {booking.booking_id} accepted on behalf of partner.')
 
             elif action == 'reject':
-                instant_req.status = InstantBookingRequest.RequestStatus.DECLINED
-                instant_req.responded_at = timezone.now()
-                instant_req.save(update_fields=['status', 'responded_at'])
-                messages.success(request, 'Instant Booking request declined.')
+                offer.status = BookingOffer.Status.DECLINED
+                offer.responded_at = timezone.now()
+                offer.save(update_fields=['status', 'responded_at'])
+                messages.success(request, f'Booking {booking.booking_id} declined on behalf of partner.')
 
     else:
         messages.error(request, 'Invalid data provided.')
@@ -545,9 +524,7 @@ def agent_workers_by_date(request):
         "clear_advanced_url": _availability_url(
             params, gender="", skills="", category="", distance="", sort="",
         ),
-        "pending_bookings": bookings.filter(
-            status__in=[Booking.Status.PENDING, Booking.Status.SEARCHING],
-        )[:5],
+        "pending_bookings": bookings.filter(status=Booking.Status.SEARCHING)[:5],
         "active_bookings": bookings.filter(
             status__in=[Booking.Status.CONFIRMED, Booking.Status.IN_PROGRESS],
         )[:5],

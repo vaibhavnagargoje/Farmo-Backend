@@ -313,7 +313,7 @@ function hasCoordinates(item) {
 }
 function groundPosition(item) { return { lat: Number(item.lat), lng: Number(item.lng) }; }
 function displayPosition(item) { return { lat: Number(item.displayLat ?? item.lat), lng: Number(item.displayLng ?? item.lng) }; }
-function isPending(booking) { return !!booking && ['PENDING', 'SEARCHING'].includes(booking.status); }
+function isPending(booking) { return !!booking && booking.status === 'SEARCHING'; }
 function isAssigned(booking, partner) {
     return !!booking && !!partner && ['CONFIRMED', 'IN_PROGRESS'].includes(booking.status) && Number(booking.accepted_provider_id || booking.provider_id) === Number(partner.id);
 }
@@ -514,10 +514,8 @@ function renderQueueSidebar() {
             metaRow.append(node('span', 'map-muted', `${item.type_label} · ★ ${item.rating} · ${item.jobs_completed} jobs`));
         } else {
             metaRow.append(node('span', 'map-booking-id', `#${item.booking_id}`));
-            if (item.booking_type === 'INSTANT') {
-                metaRow.append(node('span', 'map-type-chip instant', '⚡ Instant'));
-            } else {
-                metaRow.append(node('span', 'map-type-chip scheduled', '📅 Scheduled'));
+            if (item.is_phone) {
+                metaRow.append(node('span', 'map-type-chip phone', '📞 Phone'));
             }
             if (item.customer_name) {
                 metaRow.append(node('span', 'map-customer-name truncate', item.customer_name));
@@ -574,7 +572,7 @@ function openBookingDrawer(booking) {
 
 
 function renderBookingDrawer(booking) {
-    setText('drawerIconWrap', booking.booking_type === 'INSTANT' ? '⚡' : '📅'); setText('drawerTitle', booking.service_name || booking.category_name || 'Order details'); setText('drawerSubtitle', `#${booking.booking_id} · ${booking.status_label || booking.status}`);
+    setText('drawerIconWrap', booking.is_phone ? '📞' : '📋');setText('drawerTitle', booking.service_name || booking.category_name || 'Order details'); setText('drawerSubtitle', `#${booking.booking_id} · ${booking.status_label || booking.status}`);
     const body = document.getElementById('drawerBody'); body.replaceChildren();
     const overview = section('Order details'), details = node('dl', 'map-detail-list');
     details.append(row('Customer', booking.customer_name), row('Work', `${booking.quantity ?? '—'} ${booking.price_unit_label || booking.price_unit || ''}`), row('Date & time', `${booking.scheduled_date || 'Today'} ${booking.scheduled_time || ''}`), row('Agreed total', money(booking.total_amount)), row('Location', booking.address || 'Address unavailable'));
@@ -607,7 +605,7 @@ function renderBookingDrawer(booking) {
     }
 
     // ── Dispatch Management Action Buttons ──
-    if (['PENDING', 'SEARCHING', 'CONFIRMED', 'IN_PROGRESS'].includes(booking.status)) {
+    if (['SEARCHING', 'CONFIRMED', 'IN_PROGRESS'].includes(booking.status)) {
         const actionSection = section('Dispatch Actions');
         actionSection.classList.add('map-manage-section');
         const actionsWrap = node('div', 'map-actions map-booking-actions');
@@ -672,7 +670,7 @@ function providerCard(partner, booking, candidate, assigned = false) {
     const services = relevantServices(partner, booking);
     if (services.length) { const details = node('details', 'map-services'); details.append(node('summary', '', serviceSummary(services[0]) + (services.length > 1 ? ` (+${services.length - 1})` : ''))); services.forEach(service => details.append(serviceCard(service, partner, booking))); card.append(details); }
     const actions = actionRow(); if (phoneUrl(partner.phone)) actions.append(link('Call', phoneUrl(partner.phone))); if (partner.profile_url) actions.append(link('Profile ↗', partner.profile_url)); card.append(actions);
-    if (['PENDING', 'SEARCHING', 'CONFIRMED', 'IN_PROGRESS'].includes(booking.status)) {
+    if (['SEARCHING', 'CONFIRMED', 'IN_PROGRESS'].includes(booking.status)) {
         const messages = actionRow(); [['WhatsApp', 'whatsapp'], ['SMS', 'sms']].forEach(([label, channel]) => {
             const button = action(label, () => openMessageDraft(booking, partner, channel), 'map-action' + (channel === 'whatsapp' ? ' map-action-whatsapp' : ''));
             button.title = assigned ? 'Send full work details to the assigned provider' : 'Send a short enquiry without customer contact or exact location'; messages.append(button);

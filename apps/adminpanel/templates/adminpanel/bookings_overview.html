@@ -18,8 +18,8 @@
         --text-muted: #94a3b8;
         --grid: #eef0f3;
         --baseline: #cbd5e1;
-        --series-1: #2a78d6;   /* Instant */
-        --series-2: #eb6834;   /* Scheduled */
+        --series-1: #2a78d6;   /* Placed in the app */
+        --series-2: #eb6834;   /* Placed by phone (Quick Book) */
     }
     .viz-plot { position: relative; height: 220px; margin-left: 36px; }
     .viz-grid { position: absolute; left: 0; right: 0; border-top: 1px solid var(--grid); }
@@ -101,13 +101,13 @@
                 <p class="text-xs text-slate-500">{{ stats.total }} created · {{ stats.by_phone }} by phone ({% widthratio stats.by_phone stats.total|default:1 100 %}%)</p>
             </div>
             <div class="flex items-center gap-4 text-xs text-slate-600" aria-hidden="true">
-                <span class="inline-flex items-center gap-1.5"><span class="viz-key" style="background:var(--series-1)"></span>Instant</span>
-                <span class="inline-flex items-center gap-1.5"><span class="viz-key" style="background:var(--series-2)"></span>Scheduled</span>
+                <span class="inline-flex items-center gap-1.5"><span class="viz-key" style="background:var(--series-1)"></span>App</span>
+                <span class="inline-flex items-center gap-1.5"><span class="viz-key" style="background:var(--series-2)"></span>Phone</span>
             </div>
         </div>
 
         {% if trend.has_data %}
-        <div class="viz-plot" role="img" aria-label="Stacked columns of instant and scheduled bookings per {% if trend.weekly %}week{% else %}day{% endif %}; values in the table below">
+        <div class="viz-plot" role="img" aria-label="Stacked columns of app and phone bookings per {% if trend.weekly %}week{% else %}day{% endif %}; values in the table below">
             {% for t in trend.ticks %}
             <div class="viz-grid {% if t.value == 0 %}is-base{% endif %}" style="bottom: {{ t.bottom }}%"></div>
             <span class="viz-tick" style="bottom: {{ t.bottom }}%; transform: translateY(50%)">{{ t.value }}</span>
@@ -115,12 +115,12 @@
             <div class="viz-cols" id="trend-cols">
                 {% for b in trend.buckets %}
                 <div class="viz-slot" tabindex="0"
-                     data-label="{{ b.label }}" data-instant="{{ b.instant }}" data-scheduled="{{ b.scheduled }}" data-total="{{ b.total }}"
-                     aria-label="{{ b.label }}: {{ b.instant }} instant, {{ b.scheduled }} scheduled">
+                     data-label="{{ b.label }}" data-app="{{ b.app }}" data-phone="{{ b.phone }}" data-total="{{ b.total }}"
+                     aria-label="{{ b.label }}: {{ b.app }} app, {{ b.phone }} phone">
                     {% if b.total %}
                     <div class="viz-stack" style="height: {{ b.height }}%">
-                        {% if b.instant %}<div class="viz-seg-1" style="flex: {{ b.instant }} 1 0"></div>{% endif %}
-                        {% if b.scheduled %}<div class="viz-seg-2" style="flex: {{ b.scheduled }} 1 0"></div>{% endif %}
+                        {% if b.app %}<div class="viz-seg-1" style="flex: {{ b.app }} 1 0"></div>{% endif %}
+                        {% if b.phone %}<div class="viz-seg-2" style="flex: {{ b.phone }} 1 0"></div>{% endif %}
                     </div>
                     {% endif %}
                 </div>
@@ -134,10 +134,10 @@
             <summary class="text-xs font-semibold text-slate-500 cursor-pointer hover:text-slate-700">View as table</summary>
             <div class="overflow-x-auto mt-2 max-h-64 overflow-y-auto">
                 <table class="w-full text-xs">
-                    <thead><tr class="text-slate-500 text-left"><th class="py-1.5 pr-4 font-semibold">{% if trend.weekly %}Week{% else %}Day{% endif %}</th><th class="py-1.5 pr-4 font-semibold text-right">Instant</th><th class="py-1.5 pr-4 font-semibold text-right">Scheduled</th><th class="py-1.5 font-semibold text-right">Total</th></tr></thead>
+                    <thead><tr class="text-slate-500 text-left"><th class="py-1.5 pr-4 font-semibold">{% if trend.weekly %}Week{% else %}Day{% endif %}</th><th class="py-1.5 pr-4 font-semibold text-right">App</th><th class="py-1.5 pr-4 font-semibold text-right">Phone</th><th class="py-1.5 font-semibold text-right">Total</th></tr></thead>
                     <tbody class="divide-y divide-slate-100 tabular-nums">
                         {% for b in trend.buckets %}
-                        <tr><td class="py-1.5 pr-4 text-slate-700">{{ b.label }}</td><td class="py-1.5 pr-4 text-right">{{ b.instant }}</td><td class="py-1.5 pr-4 text-right">{{ b.scheduled }}</td><td class="py-1.5 text-right font-semibold text-slate-800">{{ b.total }}</td></tr>
+                        <tr><td class="py-1.5 pr-4 text-slate-700">{{ b.label }}</td><td class="py-1.5 pr-4 text-right">{{ b.app }}</td><td class="py-1.5 pr-4 text-right">{{ b.phone }}</td><td class="py-1.5 text-right font-semibold text-slate-800">{{ b.total }}</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -205,7 +205,7 @@
                     <span class="font-mono text-xs font-semibold text-slate-700 w-28 shrink-0">{{ b.booking_id }}</span>
                     <span class="flex-1 min-w-0">
                         <span class="block text-sm text-slate-800 truncate">{{ b.customer.customer_profile.full_name|default:b.customer.phone_number }} · {{ b.category.name|default:"—" }}</span>
-                        <span class="block text-xs text-slate-400">{% if b.booking_type == 'INSTANT' %}⚡ Instant{% else %}📅 Scheduled{% endif %}{% if b.created_by_agent_id %} · 📞 Phone{% endif %} · {{ b.created_at|timesince }} ago</span>
+                        <span class="block text-xs text-slate-400">{% if b.created_by_agent_id %}📞 Phone{% else %}📱 App{% endif %} · {{ b.created_at|timesince }} ago</span>
                     </span>
                     {% include 'adminpanel/includes/booking_status_badge.html' with status=b.status label=b.get_status_display %}
                     <span class="hidden sm:block text-sm font-semibold text-slate-800 w-20 text-right">₹{{ b.total_amount|floatformat:0 }}</span>
@@ -249,8 +249,8 @@
         title.style.fontWeight = '600';
         title.textContent = d.label;
         tip.append(title,
-            row('var(--series-1)', d.instant, 'instant'),
-            row('var(--series-2)', d.scheduled, 'scheduled'),
+            row('var(--series-1)', d.app, 'app'),
+            row('var(--series-2)', d.phone, 'phone'),
             row('transparent', d.total, 'total'));
         tip.hidden = false;
         const r = slot.getBoundingClientRect();

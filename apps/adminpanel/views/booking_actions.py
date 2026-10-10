@@ -15,8 +15,8 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
-from bookings.instant import InstantBookingError, rebroadcast_instant_booking
-from bookings.models import Booking, InstantBookingRequest
+from bookings.dispatch import BookingError, rebroadcast_booking
+from bookings.models import Booking, BookingOffer
 from partners.models import PartnerProfile
 from services.models import Service
 
@@ -51,7 +51,7 @@ def booking_assign_partner(request):
         is_reassign = request.POST.get("reassign") in ("true", "1", True)
         if booking.status == Booking.Status.CONFIRMED and not is_reassign:
             return JsonResponse({"success": False, "error": "This order is already assigned. Refresh the map."}, status=409)
-        if booking.status not in (Booking.Status.PENDING, Booking.Status.SEARCHING, Booking.Status.CONFIRMED) or booking.is_expired:
+        if booking.status not in (Booking.Status.SEARCHING, Booking.Status.CONFIRMED) or booking.is_expired:
             return JsonResponse({"success": False, "error": "This order cannot be assigned in its current status. Refresh the map."}, status=409)
         old_provider_id = booking.provider_id
         get_object_or_404(PartnerProfile.objects.select_for_update(), pk=partner_id)
@@ -75,18 +75,17 @@ def booking_assign_partner(request):
         if old_provider_id and old_provider_id != partner.id:
             from availability.models import BusyDay
             BusyDay.objects.filter(booking=booking, partner_id=old_provider_id).delete()
-        # Scheduled orders keep their booked asset. Instant orders gain a
-        # concrete eligible service while retaining the agreed price snapshot.
+        # The booking gains a concrete eligible service while retaining the agreed price snapshot.
         booking.service = selected_service
         booking.provider = partner
         booking.status = Booking.Status.CONFIRMED
         booking.assigned_at = timezone.now()
         booking.accepted_by_agent = request.user
         booking.save()  # The model owns BusyDay synchronization and OTP creation.
-        winner = InstantBookingRequest.objects.filter(booking=booking, provider=partner, status="PENDING").order_by("-broadcast_round", "-id").first()
+        winner = BookingOffer.objects.filter(booking=booking, provider=partner, status=BookingOffer.Status.PENDING).order_by("-broadcast_round", "-id").first()
         if winner:
-            InstantBookingRequest.objects.filter(pk=winner.pk).update(status="ACCEPTED", responded_at=timezone.now())
-        InstantBookingRequest.objects.filter(booking=booking, status="PENDING").update(status="EXPIRED", responded_at=timezone.now())
+            BookingOffer.objects.filter(pk=winner.pk).update(status=BookingOffer.Status.ACCEPTED, responded_at=timezone.now())
+        BookingOffer.objects.filter(booking=booking, status=BookingOffer.Status.PENDING).update(status=BookingOffer.Status.EXPIRED, responded_at=timezone.now())
     fresh = get_object_or_404(booking_queryset(), pk=booking.pk)
     updated = booking_data(fresh, {partner.id: partner_data(get_object_or_404(partner_queryset(), pk=partner.id))})
     return JsonResponse({
@@ -113,7 +112,7 @@ def booking_cancel(request):
         booking.status = Booking.Status.CANCELLED
         booking.cancellation_reason = reason or "Cancelled by admin"
         booking.cancelled_by = request.user
-        booking.save()  # The model auto-cleans busy days and expires instant requests
+        booking.save()  # The model auto-cleans busy days and expires pending offers
     return JsonResponse({
         "success": True,
         "message": f"Booking #{booking.booking_id} cancelled successfully.",
@@ -238,13 +237,13 @@ def booking_update_pricing(request):
 @never_cache
 @_json_404
 def booking_rebroadcast(request):
-    """Retry search: notify nearby providers again for an unassigned instant order."""
+    """Retry search: notify nearby providers again for an unassigned order."""
     if not is_agent(request.user):
         return JsonResponse({"success": False, "error": "Admin access required."}, status=403)
     booking = get_object_or_404(Booking, booking_id=request.POST.get("booking_id") or "")
     try:
-        booking, notified = rebroadcast_instant_booking(booking)
-    except InstantBookingError as exc:
+        booking, notified = rebroadcast_booking(booking)
+    except BookingError as exc:
         return JsonResponse({"success": False, "error": str(exc)}, status=409)
     return JsonResponse({
         "success": True,

@@ -6,7 +6,7 @@
 {% block breadcrumb %}
 <a href="{% url 'adminpanel:bookings' %}" class="hover:text-slate-800">Bookings</a>
 <span class="text-slate-300">/</span>
-<a href="{% if booking.booking_type == 'INSTANT' %}{% url 'adminpanel:bookings-instant' %}{% else %}{% url 'adminpanel:bookings-scheduled' %}{% endif %}" class="hover:text-slate-800">{{ booking.get_booking_type_display }}</a>
+<a href="{% url 'adminpanel:bookings-list' %}" class="hover:text-slate-800">All orders</a>
 <span class="text-slate-300">/</span>
 <span class="font-semibold text-slate-800 font-mono">{{ booking.booking_id }}</span>
 {% endblock %}
@@ -27,9 +27,6 @@
             <div class="flex flex-wrap items-center gap-2">
                 <h1 class="font-mono text-lg font-bold text-slate-900">{{ booking.booking_id }}</h1>
                 {% include 'adminpanel/includes/booking_status_badge.html' with status=booking.status label=booking.get_status_display %}
-                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full border {% if booking.booking_type == 'INSTANT' %}bg-amber-50 text-amber-800 border-amber-200{% else %}bg-blue-50 text-blue-800 border-blue-200{% endif %}">
-                    {% if booking.booking_type == 'INSTANT' %}⚡ Instant{% else %}📅 Scheduled{% endif %}
-                </span>
                 {% if booking.created_by_agent_id %}
                 <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-violet-50 text-violet-800 border-violet-200">📞 Booked by phone</span>
                 {% endif %}

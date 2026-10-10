@@ -3,8 +3,8 @@ from decimal import Decimal
 
 from rest_framework import serializers
 from django.utils import timezone
-from .instant import InstantBookingError, active_instant_booking, create_instant_booking
-from .models import Booking, InstantBookingRequest
+from .dispatch import BookingError, active_booking, create_booking, create_provider_contact
+from .models import Booking, BookingOffer, ProviderContact
 from services.serializers import ServiceListSerializer
 from services.models import Category, Service
 from partners.serializers import PartnerProfileSerializer
@@ -12,6 +12,11 @@ from partners.models import PartnerProfile
 from users.serializers import UserSerializer
 
 MAX_QUANTITY = Decimal("10000")
+
+# Deprecated: every booking is now a Farmo booking. Older app versions still
+# read booking_type to pick icons and labels (and treat a missing value as
+# "scheduled"), so responses keep sending this constant for one release.
+LEGACY_BOOKING_TYPE = 'INSTANT'
 
 
 def quantity_input_field(**kwargs):
@@ -28,6 +33,10 @@ def quantity_output_field(**kwargs):
     )
 
 
+def legacy_booking_type_field():
+    return serializers.SerializerMethodField(help_text="Deprecated; always INSTANT.")
+
+
 class BookingListSerializer(serializers.ModelSerializer):
     """
     Lightweight serializer for listing bookings.
@@ -38,6 +47,7 @@ class BookingListSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True, default=None)
     category_name_translations = serializers.JSONField(source='category.name_translations', read_only=True, default=dict)
     quantity = quantity_output_field()
+    booking_type = legacy_booking_type_field()
 
     class Meta:
         model = Booking
@@ -50,11 +60,14 @@ class BookingListSerializer(serializers.ModelSerializer):
             'otp_mode_snapshot',
         ]
 
+    def get_booking_type(self, obj):
+        return LEGACY_BOOKING_TYPE
+
     def get_service_title(self, obj):
         if obj.service:
             return obj.service.title
         if obj.category:
-            return f"{obj.category.name} (Instant)"
+            return obj.category.name
         return "Unknown"
 
 
@@ -69,6 +82,7 @@ class BookingDetailSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True, default=None)
     category_name_translations = serializers.JSONField(source='category.name_translations', read_only=True, default=dict)
     quantity = quantity_output_field()
+    booking_type = legacy_booking_type_field()
 
     class Meta:
         model = Booking
@@ -84,6 +98,9 @@ class BookingDetailSerializer(serializers.ModelSerializer):
             'note', 'cancellation_reason', 'cancelled_by',
             'created_at', 'updated_at'
         ]
+
+    def get_booking_type(self, obj):
+        return LEGACY_BOOKING_TYPE
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -122,139 +139,13 @@ class BookingDetailSerializer(serializers.ModelSerializer):
         return data
 
 
-class BookingCreateSerializer(serializers.ModelSerializer):
-    """
-    Serializer for Customers to create a new Booking.
-    """
-    service_id = serializers.IntegerField(write_only=True)
-    quantity = quantity_input_field(required=False)
-    price_unit = serializers.CharField(
-        required=False,
-        allow_null=True,
-        allow_blank=True,
-        help_text="ServicePriceUnit.key — validated against active units"
-    )
-
-    def validate_price_unit(self, value):
-        if value:
-            from services.models import ServicePriceUnit
-            if not ServicePriceUnit.objects.filter(key=value, is_active=True).exists():
-                valid_keys = list(ServicePriceUnit.objects.filter(is_active=True).values_list('key', flat=True))
-                raise serializers.ValidationError(
-                    f"Invalid price unit '{value}'. Valid options: {valid_keys}"
-                )
-        return value
-
-    class Meta:
-        model = Booking
-        fields = [
-            'service_id', 'scheduled_date', 'scheduled_time',
-            'address', 'lat', 'lng', 'quantity', 'price_unit', 'note'
-        ]
-
-    def validate_service_id(self, value):
-        from services.models import Service
-        try:
-            service = Service.objects.get(
-                id=value,
-                status=Service.Status.ACTIVE,
-                is_available=True,
-                partner__is_available=True,  # Master switch still checked
-            )
-        except Service.DoesNotExist:
-            raise serializers.ValidationError("Service not found or not available.")
-        return value
-
-    def validate_scheduled_date(self, value):
-        if value < timezone.now().date():
-            raise serializers.ValidationError("Scheduled date cannot be in the past.")
-        return value
-
-    def validate(self, attrs):
-        service = Service.objects.get(id=attrs['service_id'])
-        quantity = attrs.get('quantity', Decimal("1"))
-        requested_unit = attrs.get('price_unit')
-        
-        # Check minimum order quantity
-        if quantity < service.min_order_qty:
-            raise serializers.ValidationError({
-                "quantity": f"Minimum order quantity is {service.min_order_qty}."
-            })
-
-        # Scheduled bookings must keep the unit configured on the service.
-        service_unit_key = service.price_unit.key if service.price_unit else 'HOUR'
-        if requested_unit and requested_unit != service_unit_key:
-            raise serializers.ValidationError({
-                "price_unit": f"This service is priced in {service_unit_key}."
-            })
-
-        # ── Calendar Availability Check ──
-        # Check if the partner is busy on the scheduled date
-        scheduled_date = attrs.get('scheduled_date')
-        if scheduled_date:
-            from availability.models import BusyDay
-            is_busy = BusyDay.objects.filter(
-                partner=service.partner,
-                date=scheduled_date,
-                service__isnull=True,  # Partner-level busy
-            ).exists()
-            if is_busy:
-                raise serializers.ValidationError({
-                    "provider_busy": True,
-                    "scheduled_date": "This provider is not available on the selected date.",
-                    "message": "This provider is not available on the selected date."
-                })
-
-        # Block duplicate: same customer + same provider while an order is still active
-        user = self.context['request'].user
-        active_with_provider = Booking.objects.filter(
-            customer=user,
-            provider=service.partner,
-            booking_type=Booking.BookingType.SCHEDULED,
-            status__in=[
-                Booking.Status.PENDING,
-                Booking.Status.CONFIRMED,
-                Booking.Status.IN_PROGRESS,
-            ],
-        ).exists()
-        if active_with_provider:
-            raise serializers.ValidationError({
-                "duplicate_provider": True,
-                "message": "You already have an active booking with this provider. "
-                           "Please wait for it to complete or cancel it before booking again.",
-            })
-        
-        return attrs
-
-    def create(self, validated_data):
-        requested_unit = validated_data.pop('price_unit', None)
-        service_id = validated_data.pop('service_id')
-        service = Service.objects.get(id=service_id)
-        resolved_unit = requested_unit or (service.price_unit.key if service.price_unit else 'HOUR')
-        
-        # Create booking with snapshot pricing
-        quantity = validated_data.pop('quantity', Decimal("1"))
-        booking = Booking.objects.create(
-            customer=self.context['request'].user,
-            service=service,
-            provider=service.partner,
-            price_unit=resolved_unit,
-            quantity=quantity,
-            unit_price=service.price,
-            total_amount=(service.price * quantity).quantize(Decimal("0.01")),
-            **validated_data
-        )
-        
-        return booking
-
-
 class BookingStatusUpdateSerializer(serializers.Serializer):
     """
     Serializer for updating booking status (Provider actions).
+    Providers accept a booking through its offer, so only start/complete remain here.
     """
-    action = serializers.ChoiceField(choices=['accept', 'reject', 'start', 'complete'])
+    action = serializers.ChoiceField(choices=['start', 'complete'])
     otp = serializers.CharField(max_length=6, required=False)
-    rejection_reason = serializers.CharField(required=False)
 
     def validate(self, attrs):
         action = attrs.get('action')
@@ -262,16 +153,6 @@ class BookingStatusUpdateSerializer(serializers.Serializer):
 
         # Determine effective mode from the booking's snapshot (protects mid-flow switches)
         effective_mode = booking.otp_mode_snapshot or 'DUAL'
-
-        if action == 'accept':
-            if booking.status != Booking.Status.PENDING:
-                raise serializers.ValidationError("Can only accept PENDING bookings.")
-
-        if action == 'reject':
-            if booking.status != Booking.Status.PENDING:
-                raise serializers.ValidationError("Can only reject PENDING bookings.")
-            if not attrs.get('rejection_reason'):
-                raise serializers.ValidationError({"rejection_reason": "Required when rejecting."})
 
         if action == 'start':
             if effective_mode == 'SINGLE':
@@ -311,20 +192,20 @@ class BookingCancelSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         booking = self.context.get('booking')
-        
+
         if booking.status in [Booking.Status.COMPLETED, Booking.Status.CANCELLED]:
             raise serializers.ValidationError("Cannot cancel a completed or already cancelled booking.")
-        
+
         if booking.status == Booking.Status.IN_PROGRESS:
             raise serializers.ValidationError("Cannot cancel a booking that is already in progress. Contact support.")
-        
+
         return attrs
 
 
-class InstantBookingCreateSerializer(serializers.Serializer):
+class BookingCreateSerializer(serializers.Serializer):
     """
-    Serializer for creating an Instant (Quick) Booking.
-    Finds nearby providers, computes average price, creates broadcast requests.
+    Serializer for creating a booking through Farmo ("Book through Farmo").
+    Prices the job for the location and broadcasts it to nearby providers.
     """
     category_id = serializers.IntegerField()
     quantity = quantity_input_field()
@@ -342,7 +223,6 @@ class InstantBookingCreateSerializer(serializers.Serializer):
     scheduled_time = serializers.TimeField(required=False, allow_null=True)
 
     def validate_scheduled_date(self, value):
-        from django.utils import timezone
         if value and value < timezone.localdate():
             raise serializers.ValidationError("Scheduled date cannot be in the past.")
         return value
@@ -361,24 +241,24 @@ class InstantBookingCreateSerializer(serializers.Serializer):
         except Category.DoesNotExist:
             raise serializers.ValidationError("Category not found or not active.")
         if not category.instant_enabled:
-            raise serializers.ValidationError("Instant booking is not enabled for this category.")
+            raise serializers.ValidationError("Booking through Farmo is not enabled for this category.")
         return value
 
     def validate(self, attrs):
-        """Check if user already has an active instant booking in the SAME category."""
-        active_booking = active_instant_booking(self.context['request'].user, attrs['category_id'])
-        if active_booking:
+        """Check if user already has an active booking in the SAME category."""
+        existing = active_booking(self.context['request'].user, attrs['category_id'])
+        if existing:
             raise serializers.ValidationError({
-                "active_booking_id": active_booking.booking_id,
+                "active_booking_id": existing.booking_id,
                 "message": "You already have an active order in this category. Cancel it or wait for it to expire.",
             })
         return attrs
 
     def create(self, validated_data):
         # Pricing (zone → default zone → category) and the provider broadcast
-        # live in bookings.instant so Quick Book in the admin panel shares them.
+        # live in bookings.dispatch so Quick Book in the admin panel shares them.
         try:
-            booking, _providers_notified = create_instant_booking(
+            booking, _providers_notified = create_booking(
                 customer=self.context['request'].user,
                 category=Category.objects.get(id=validated_data['category_id']),
                 lat=validated_data['lat'],
@@ -389,18 +269,18 @@ class InstantBookingCreateSerializer(serializers.Serializer):
                 scheduled_date=validated_data.get('scheduled_date'),
                 scheduled_time=validated_data.get('scheduled_time'),
             )
-        except InstantBookingError as exc:
+        except BookingError as exc:
             raise serializers.ValidationError(str(exc))
         return booking
 
 
-class InstantBookingRequestSerializer(serializers.ModelSerializer):
+class BookingOfferSerializer(serializers.ModelSerializer):
     """
-    Serializer for showing pending InstantBookingRequests to providers.
+    Serializer for showing pending BookingOffers to providers.
     Flattens booking details so the frontend has everything it needs.
     """
     booking_id = serializers.CharField(source='booking.booking_id', read_only=True)
-    booking_type = serializers.CharField(source='booking.booking_type', read_only=True)
+    booking_type = legacy_booking_type_field()
     booking_status = serializers.CharField(source='booking.status', read_only=True)
     category_name = serializers.SerializerMethodField()
     service_title = serializers.SerializerMethodField()
@@ -419,7 +299,7 @@ class InstantBookingRequestSerializer(serializers.ModelSerializer):
     created_at = serializers.DateTimeField(source='booking.created_at', read_only=True)
 
     class Meta:
-        model = InstantBookingRequest
+        model = BookingOffer
         fields = [
             'id', 'booking_id', 'booking_type', 'booking_status', 'order_number',
             'category_name', 'service_title', 'customer_phone',
@@ -428,6 +308,9 @@ class InstantBookingRequestSerializer(serializers.ModelSerializer):
             'note', 'expires_at', 'created_at',
             'status', 'distance_km', 'notified_at', 'response_deadline',
         ]
+
+    def get_booking_type(self, obj):
+        return LEGACY_BOOKING_TYPE
 
     def get_category_name(self, obj):
         if obj.booking.category:
@@ -438,5 +321,87 @@ class InstantBookingRequestSerializer(serializers.ModelSerializer):
         if obj.booking.service:
             return obj.booking.service.title
         if obj.booking.category:
-            return f"{obj.booking.category.name} (Instant)"
+            return obj.booking.category.name
         return "Unknown"
+
+
+# --- Direct provider contacts ("Find yourself") ---
+
+class ProviderContactCreateSerializer(serializers.Serializer):
+    """
+    A customer is about to call (or has called) a provider from a listing.
+    Older app versions send the same payload to POST /bookings/ after the call.
+    """
+    service_id = serializers.IntegerField()
+    quantity = quantity_input_field(required=False, allow_null=True)
+    price_unit = serializers.CharField(required=False, allow_null=True, allow_blank=True, max_length=20)
+    note = serializers.CharField(required=False, allow_null=True, allow_blank=True, default="")
+    address = serializers.CharField(required=False, allow_null=True, allow_blank=True, default="")
+    lat = serializers.FloatField(required=False, allow_null=True)
+    lng = serializers.FloatField(required=False, allow_null=True)
+    outcome = serializers.ChoiceField(
+        choices=ProviderContact.Outcome.choices, required=False, default=ProviderContact.Outcome.CALLED,
+    )
+
+    def validate_service_id(self, value):
+        if not Service.objects.filter(id=value, status=Service.Status.ACTIVE).exists():
+            raise serializers.ValidationError("Service not found or not available.")
+        return value
+
+    def validate(self, attrs):
+        lat, lng = attrs.get('lat'), attrs.get('lng')
+        # The app sends 0, 0 when it has no location.
+        if lat is None or lng is None or (not lat and not lng):
+            attrs['lat'] = attrs['lng'] = None
+        else:
+            attrs['lat'], attrs['lng'] = round(float(lat), 6), round(float(lng), 6)
+        return attrs
+
+    def create(self, validated_data):
+        service = Service.objects.select_related('price_unit').get(id=validated_data['service_id'])
+        try:
+            return create_provider_contact(
+                customer=self.context['request'].user,
+                service=service,
+                quantity=validated_data.get('quantity'),
+                price_unit=validated_data.get('price_unit') or '',
+                note=validated_data.get('note') or '',
+                address=validated_data.get('address') or '',
+                lat=validated_data['lat'],
+                lng=validated_data['lng'],
+                outcome=validated_data['outcome'],
+            )
+        except BookingError as exc:
+            raise serializers.ValidationError(str(exc))
+
+
+class ProviderContactOutcomeSerializer(serializers.Serializer):
+    outcome = serializers.ChoiceField(choices=[
+        ProviderContact.Outcome.AGREED, ProviderContact.Outcome.NOT_AGREED,
+    ])
+
+
+class ProviderContactSerializer(serializers.ModelSerializer):
+    """The customer's own view of a contact."""
+    class Meta:
+        model = ProviderContact
+        fields = ['id', 'outcome', 'created_at', 'responded_at']
+
+
+class PartnerContactSerializer(serializers.ModelSerializer):
+    """A farmer who found this partner on Farmo, as the partner sees it."""
+    customer_name = serializers.CharField(source='customer.customer_profile.full_name', read_only=True, default='')
+    customer_phone = serializers.CharField(source='customer.phone_number', read_only=True)
+    service_title = serializers.CharField(source='service.title', read_only=True, default=None)
+    category_name = serializers.CharField(source='category.name', read_only=True, default=None)
+    category_name_translations = serializers.JSONField(source='category.name_translations', read_only=True, default=dict)
+    quantity = quantity_output_field()
+
+    class Meta:
+        model = ProviderContact
+        fields = [
+            'id', 'customer_name', 'customer_phone',
+            'service_title', 'category_name', 'category_name_translations',
+            'quantity', 'price_unit', 'address', 'note',
+            'outcome', 'created_at', 'responded_at',
+        ]

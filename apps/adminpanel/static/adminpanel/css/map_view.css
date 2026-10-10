@@ -303,15 +303,10 @@
     padding: 1px 5px;
     border-radius: 4px;
 }
-.map-type-chip.instant {
-    background: #fef3c7;
-    color: #b45309;
-    border: 1px solid #fde68a;
-}
-.map-type-chip.scheduled {
-    background: #f1f5f9;
-    color: #475569;
-    border: 1px solid #e2e8f0;
+.map-type-chip.phone {
+    background: #f5f3ff;
+    color: #6d28d9;
+    border: 1px solid #ddd6fe;
 }
 .map-queue-footer {
     display: flex;

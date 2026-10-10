@@ -151,7 +151,7 @@ class ZonePricingApiTests(TestCase):
     def test_instant_booking_uses_zone_price_and_ignores_client_unit(self, _push):
         client = APIClient()
         client.force_authenticate(self.customer)
-        response = client.post(reverse("bookings:instant-booking-create"), {
+        response = client.post(reverse("bookings:booking-create"), {
             "category_id": self.category.id,
             "quantity": 2,
             "price_unit": "HOUR",  # what an older app build sends (the global category unit)

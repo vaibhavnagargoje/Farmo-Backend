@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 from . import views
 
 app_name = 'adminpanel'
@@ -45,9 +46,11 @@ urlpatterns = [
     # ── Bookings ──────────────────────────────────────────────────────────
     path('bookings/', views.bookings_overview, name='bookings'),
     path('bookings/all/', views.bookings_list, name='bookings-list'),
-    path('bookings/instant/', views.bookings_list, name='bookings-instant'),
-    path('bookings/scheduled/', views.bookings_list, name='bookings-scheduled'),
+    # Old Instant / Scheduled tabs: there is one kind of booking now
+    path('bookings/instant/', RedirectView.as_view(pattern_name='adminpanel:bookings-list', query_string=True)),
+    path('bookings/scheduled/', RedirectView.as_view(pattern_name='adminpanel:bookings-list', query_string=True)),
     path('bookings/export/', views.bookings_export, name='bookings-export'),
+    path('bookings/contacts/', views.provider_contacts_list, name='provider-contacts'),
 
     # Actions on one booking (used by Map View and Bookings pages; POST JSON)
     path('bookings/actions/assign/', views.booking_assign_partner, name='booking-assign'),
@@ -61,7 +64,7 @@ urlpatterns = [
     path('bookings/quick-book/categories/', views.quick_book_categories, name='quick-book-categories'),
     path('bookings/quick-book/create/', views.quick_book_create, name='quick-book-create'),
 
-    # Booking detail (catch-all last; ids look like FB-XXXXXXXX / BK-XXXXXXXX)
+    # Booking detail (catch-all last; ids look like FB-XXXXXXXX, older ones BK-XXXXXXXX)
     path('bookings/<str:booking_id>/', views.booking_detail, name='booking-detail'),
 ]
 

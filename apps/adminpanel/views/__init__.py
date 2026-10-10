@@ -59,6 +59,7 @@ from .bookings import (
     bookings_list,
     bookings_export,
     booking_detail,
+    provider_contacts_list,
 )
 from .booking_actions import (
     booking_assign_partner,

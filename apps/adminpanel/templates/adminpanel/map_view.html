@@ -89,8 +89,7 @@
                                 class="text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg pl-2.5 pr-6 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-xs transition appearance-none"
                                 style="max-width: 140px;">
                             <option value="" {% if not status_filter %}selected{% endif %}>All Bookings</option>
-                            <option value="PENDING" {% if status_filter == 'PENDING' %}selected{% endif %}>Pending</option>
-                            <option value="SEARCHING" {% if status_filter == 'SEARCHING' %}selected{% endif %}>Searching</option>
+<option value="SEARCHING" {% if status_filter == 'SEARCHING' %}selected{% endif %}>Searching</option>
                             <option value="CONFIRMED" {% if status_filter == 'CONFIRMED' %}selected{% endif %}>Confirmed</option>
                             <option value="IN_PROGRESS" {% if status_filter == 'IN_PROGRESS' %}selected{% endif %}>In Progress</option>
                         </select>

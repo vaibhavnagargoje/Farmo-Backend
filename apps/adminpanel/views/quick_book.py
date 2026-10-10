@@ -1,8 +1,8 @@
 """Quick Book: JSON endpoints behind the global slide-over booking wizard.
 
 An agent on a phone call finds or creates the caller, pins the job location,
-picks a category and places an INSTANT booking. Creation goes through
-bookings.instant, so the order is priced and broadcast exactly like one placed
+picks a category and places a booking. Creation goes through
+bookings.dispatch, so the order is priced and broadcast exactly like one placed
 in the app.
 """
 
@@ -19,12 +19,12 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
 
-from bookings.instant import (
-    ACTIVE_INSTANT_STATUSES,
-    InstantBookingError,
-    active_instant_booking,
+from bookings.dispatch import (
+    ACTIVE_STATUSES,
+    BookingError,
+    active_booking,
     count_nearby_partners,
-    create_instant_booking,
+    create_booking,
 )
 from bookings.models import Booking
 from locations.models import UserLocation
@@ -127,7 +127,7 @@ def quick_book_user_search(request):
     )
     active = {}
     for booking in Booking.objects.filter(
-        customer__in=users, booking_type=Booking.BookingType.INSTANT, status__in=ACTIVE_INSTANT_STATUSES,
+        customer__in=users, status__in=ACTIVE_STATUSES,
     ).select_related("category").order_by("-created_at"):
         active.setdefault(booking.customer_id, []).append(booking)
     return JsonResponse({
@@ -140,7 +140,7 @@ def quick_book_user_search(request):
 @never_cache
 def quick_book_categories(request):
     """
-    Instant-enabled categories. With ``lat``/``lng`` each one carries the
+    Categories bookable through Farmo. With ``lat``/``lng`` each one carries the
     price for that spot (pricing zone aware) and how many providers would be
     notified; with ``customer_id`` it also flags an open order in that category.
     """
@@ -151,7 +151,7 @@ def quick_book_categories(request):
     open_orders = {}
     if customer_id:
         for booking in Booking.objects.filter(
-            customer_id=customer_id, booking_type=Booking.BookingType.INSTANT, status__in=ACTIVE_INSTANT_STATUSES,
+            customer_id=customer_id, status__in=ACTIVE_STATUSES,
         ).select_related("category"):
             open_orders.setdefault(booking.category_id, booking)
 
@@ -204,7 +204,7 @@ def _resolve_customer(data):
 @require_POST
 @never_cache
 def quick_book_create(request):
-    """Create (and broadcast) an instant booking for a caller."""
+    """Create (and broadcast) a booking for a caller."""
     if not is_agent(request.user):
         return _forbidden()
     try:
@@ -219,7 +219,7 @@ def quick_book_create(request):
         is_active=True, instant_enabled=True,
     ).first()
     if category is None:
-        return _error("Select a category that accepts instant bookings.")
+        return _error("Select a category that accepts bookings through Farmo.")
 
     coords = _parse_coords(data.get("lat"), data.get("lng"))
     if coords is None:
@@ -256,7 +256,7 @@ def quick_book_create(request):
             if not customer.is_active:
                 raise ValueError("This account is deactivated. Reactivate it from Users first.")
 
-            open_order = active_instant_booking(customer, category)
+            open_order = active_booking(customer, category)
             if open_order:
                 return _error(
                     f"This customer already has an open {category.name} order ({open_order.booking_id}).",
@@ -277,7 +277,7 @@ def quick_book_create(request):
                     defaults={"address": address, "latitude": coords[0], "longitude": coords[1]},
                 )
 
-            booking, providers_notified = create_instant_booking(
+            booking, providers_notified = create_booking(
                 customer=customer,
                 category=category,
                 lat=coords[0],
@@ -289,7 +289,7 @@ def quick_book_create(request):
                 unit_price_override=unit_price,
                 created_by_agent=request.user,
             )
-    except (ValueError, InstantBookingError) as exc:
+    except (ValueError, BookingError) as exc:
         return _error(str(exc))
 
     return JsonResponse({

@@ -637,11 +637,14 @@ class PartnerDashboardView(APIView):
         partner = get_object_or_404(PartnerProfile, user=request.user)
         
         # Get stats from related bookings
-        from bookings.models import Booking
-        
+        from bookings.models import Booking, BookingOffer
+
         total_bookings = partner.received_bookings.count()
         completed_jobs = partner.received_bookings.filter(status=Booking.Status.COMPLETED).count()
-        pending_jobs = partner.received_bookings.filter(status=Booking.Status.PENDING).count()
+        # Jobs waiting for this partner's answer: open offers on bookings still searching
+        pending_jobs = partner.booking_offers.filter(
+            status=BookingOffer.Status.PENDING, booking__status=Booking.Status.SEARCHING,
+        ).count()
         in_progress_jobs = partner.received_bookings.filter(status=Booking.Status.IN_PROGRESS).count()
         
         # Calculate total earnings from completed jobs

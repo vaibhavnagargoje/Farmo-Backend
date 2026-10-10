@@ -144,8 +144,7 @@
                 <div class="mt-1 ml-5 pl-3 border-l border-slate-700/60 space-y-0.5">
                     <a href="{% url 'adminpanel:bookings' %}" class="sidebar-sublink {% if url_name == 'bookings' %}active{% endif %}">Overview</a>
                     <a href="{% url 'adminpanel:bookings-list' %}" class="sidebar-sublink {% if url_name == 'bookings-list' %}active{% endif %}">All orders</a>
-                    <a href="{% url 'adminpanel:bookings-instant' %}" class="sidebar-sublink {% if url_name == 'bookings-instant' %}active{% endif %}">Instant</a>
-                    <a href="{% url 'adminpanel:bookings-scheduled' %}" class="sidebar-sublink {% if url_name == 'bookings-scheduled' %}active{% endif %}">Scheduled</a>
+                    <a href="{% url 'adminpanel:provider-contacts' %}" class="sidebar-sublink {% if url_name == 'provider-contacts' %}active{% endif %}">Direct contacts</a>
                 </div>
             </details>
             {% endwith %}

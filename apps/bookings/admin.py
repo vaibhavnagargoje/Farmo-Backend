@@ -1,15 +1,14 @@
 from django.contrib import admin
 from django.utils import timezone
-from django.utils.html import format_html
-from .models import Booking, InstantBookingRequest
+from .models import Booking, BookingOffer, ProviderContact
 
 
-class InstantBookingRequestInline(admin.TabularInline):
+class BookingOfferInline(admin.TabularInline):
     """
-    Shows all provider requests for an instant booking inside the Booking form.
+    Shows all provider offers for a booking inside the Booking form.
     Status is editable so admin can accept a specific provider (triggers cascade).
     """
-    model = InstantBookingRequest
+    model = BookingOffer
     extra = 0
     readonly_fields = ('provider', 'distance_km', 'notified_at', 'responded_at')
     fields = ('provider', 'status', 'distance_km', 'notified_at', 'responded_at')
@@ -22,52 +21,49 @@ class InstantBookingRequestInline(admin.TabularInline):
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
     list_display = (
-        'booking_id', 
-        'booking_type_badge',
-        'status', 
-        'customer', 
-        'provider', 
+        'booking_id',
+        'status',
+        'customer',
+        'provider',
         'service_or_category',
-        'scheduled_date', 
-        'total_amount', 
+        'scheduled_date',
+        'total_amount',
         'payment_status'
     )
-    
+
     list_filter = (
-        'booking_type',
-        'status', 
-        'payment_status', 
-        'scheduled_date', 
+        'status',
+        'payment_status',
+        'scheduled_date',
         'created_at'
     )
-    
+
     search_fields = (
-        'booking_id', 
-        'customer__phone_number', 
-        'provider__user__phone_number', 
+        'booking_id',
+        'customer__phone_number',
+        'provider__user__phone_number',
         'service__title',
         'category__name'
     )
-    
+
     readonly_fields = (
-        'booking_id', 
-        'booking_type',
-        'total_amount', 
-        'start_job_otp', 
-        'end_job_otp', 
+        'booking_id',
+        'total_amount',
+        'start_job_otp',
+        'end_job_otp',
         'expires_at',
-        'created_at', 
+        'created_at',
         'updated_at',
         'accepted_by_agent',
         'price_updated_by',
         'price_updated_at',
     )
 
-    inlines = [InstantBookingRequestInline]
+    inlines = [BookingOfferInline]
 
     fieldsets = (
         ('Overview', {
-            'fields': ('booking_id', 'booking_type', 'status', 'payment_status')
+            'fields': ('booking_id', 'status', 'payment_status')
         }),
         ('Parties Involved', {
             'fields': ('customer', 'provider', 'accepted_by_agent', 'service', 'category')
@@ -97,24 +93,27 @@ class BookingAdmin(admin.ModelAdmin):
                 obj.price_updated_at = timezone.now()
         super().save_model(request, obj, form, change)
 
-    @admin.display(description='Type')
-    def booking_type_badge(self, obj):
-        if obj.booking_type == Booking.BookingType.INSTANT:
-            return format_html('<span style="background:#f59e0b;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold;">INSTANT</span>')
-        return format_html('<span style="background:#3b82f6;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold;">SCHEDULED</span>')
-
     @admin.display(description='Service / Category')
     def service_or_category(self, obj):
         if obj.service:
             return obj.service.title
         if obj.category:
-            return f"[Instant] {obj.category.name}"
+            return obj.category.name
         return '-'
 
 
-@admin.register(InstantBookingRequest)
-class InstantBookingRequestAdmin(admin.ModelAdmin):
+@admin.register(BookingOffer)
+class BookingOfferAdmin(admin.ModelAdmin):
     list_display = ('booking', 'provider', 'status', 'distance_km', 'notified_at', 'responded_at')
     list_filter = ('status',)
     search_fields = ('booking__booking_id', 'provider__user__phone_number')
     readonly_fields = ('booking', 'provider', 'notified_at')
+
+
+@admin.register(ProviderContact)
+class ProviderContactAdmin(admin.ModelAdmin):
+    list_display = ('created_at', 'customer', 'provider', 'service', 'category', 'quantity', 'price_unit', 'outcome')
+    list_filter = ('outcome', 'category', 'created_at')
+    search_fields = ('customer__phone_number', 'provider__user__phone_number', 'provider__business_name', 'service__title', 'legacy_booking_id')
+    readonly_fields = ('customer', 'provider', 'service', 'category', 'created_at', 'responded_at', 'legacy_booking_id')
+    list_select_related = ('customer', 'provider', 'service', 'category')

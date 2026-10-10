@@ -7,13 +7,13 @@ from django.urls import reverse
 from django.utils import timezone
 
 from availability.models import BusyDay
-from bookings.models import Booking, InstantBookingRequest
+from bookings.models import Booking, BookingOffer
 from labor_services.models import LaborServiceOffering
 from partners.models import PartnerProfile
 from services.models import Service, ServicePriceUnit
 
 
-ACTIVE_STATUSES = ("PENDING", "SEARCHING", "CONFIRMED", "IN_PROGRESS")
+ACTIVE_STATUSES = ("SEARCHING", "CONFIRMED", "IN_PROGRESS")
 ASSIGNED_STATUSES = ("CONFIRMED", "IN_PROGRESS")
 
 
@@ -114,11 +114,7 @@ def candidate_data(booking, partner):
     if dist is None:
         reasons.append("Location unavailable")
     services = [service for service in partner["service_details"] if service["category_id"] == category_id]
-    if booking.booking_type == Booking.BookingType.SCHEDULED:
-        services = [service for service in services if service["id"] == booking.service_id]
-        if not services:
-            reasons.append("Scheduled order requires its booked service")
-    elif not services:
+    if not services:
         reasons.append("No matching service category")
     eligible = []
     service_reasons = []
@@ -155,7 +151,7 @@ def candidate_data(booking, partner):
 def booking_queryset():
     return Booking.objects.select_related(
         "customer__customer_profile", "category", "service__category", "provider__user__customer_profile"
-    ).prefetch_related(Prefetch("instant_requests", queryset=InstantBookingRequest.objects.order_by("provider_id", "-broadcast_round", "-id")))
+    ).prefetch_related(Prefetch("offers", queryset=BookingOffer.objects.order_by("provider_id", "-broadcast_round", "-id")))
 
 
 def booking_data(booking, partners, unit_labels=None):
@@ -165,7 +161,7 @@ def booking_data(booking, partners, unit_labels=None):
     accepted_id = booking.provider_id if booking.status in ASSIGNED_STATUSES else None
     requests = []
     seen = set()
-    for item in booking.instant_requests.all():
+    for item in booking.offers.all():
         if item.provider_id in seen:
             continue
         seen.add(item.provider_id)
@@ -185,7 +181,7 @@ def booking_data(booking, partners, unit_labels=None):
         "customer_profile_url": reverse("adminpanel:user-detail", kwargs={"user_id": booking.customer_id}),
         "service_id": booking.service_id, "service_name": service.title if service else (category.name if category else ""),
         "category_id": category.id if category else None, "category_name": category.name if category else "",
-        "status": booking.status, "status_label": booking.get_status_display(), "booking_type": booking.booking_type,
+        "status": booking.status, "status_label": booking.get_status_display(), "is_phone": bool(booking.created_by_agent_id),
         "lat": float(booking.lat) if booking.lat is not None else None,
         "lng": float(booking.lng) if booking.lng is not None else None, "address": booking.address or "",
         "scheduled_date": booking.scheduled_date.isoformat() if booking.scheduled_date else "",
@@ -233,7 +229,7 @@ def dispatch_data(category_filter="", status_filter=""):
         "partners": visible, "bookings": orders, "updated_at": timezone.now().isoformat(),
         "stats": {
             "total_partners_on_map": len(visible), "total_bookings_on_map": len(orders),
-            "pending_bookings_count": sum(booking["status"] in ("PENDING", "SEARCHING") for booking in orders),
+            "pending_bookings_count": sum(booking["status"] == "SEARCHING" for booking in orders),
             "partners_online_count": sum(partner["is_available"] and partner["is_active"] for partner in visible),
             "partners_without_location": sum(partner["lat"] is None or partner["lng"] is None for partner in partners.values()),
             "booking_counts_by_category": counts, "total_active_bookings": sum(counts.values()),
