@@ -1,0 +1,93 @@
+{% extends 'adminpanel/base.html' %}
+{% block title %}Announcements | Farmo Admin{% endblock %}
+{% block nav_appcontrol %}active{% endblock %}
+{% block nav_appcontrol_open %}open{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'adminpanel:app-control' %}" class="hover:text-slate-800">App control</a>
+<span class="text-slate-300">/</span>
+<span class="font-semibold text-slate-800">Announcements</span>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-4 max-w-6xl mx-auto">
+
+    {% include 'adminpanel/app_control/_tabs.html' %}
+
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+            {% for key, label in filters %}
+            <a href="?state={{ key }}" class="px-3 py-1.5 rounded-lg text-xs font-semibold {% if state == key %}bg-slate-900 text-white{% else %}text-slate-600 hover:bg-slate-100{% endif %}">{{ label }}</a>
+            {% endfor %}
+        </div>
+        {% if can_manage %}
+        <a href="{% url 'adminpanel:app-announcement-new' %}" class="inline-flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm">+ New announcement</a>
+        {% endif %}
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {% if rows %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-slate-50 text-[11px] text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                        <th class="text-left px-4 py-3 font-semibold">Announcement</th>
+                        <th class="text-left px-4 py-3 font-semibold">Where</th>
+                        <th class="text-left px-4 py-3 font-semibold hidden md:table-cell">When</th>
+                        <th class="text-left px-4 py-3 font-semibold">State</th>
+                        <th class="text-right px-4 py-3 font-semibold">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for row in rows %}{% with a=row.item %}
+                    <tr class="hover:bg-slate-50/80">
+                        <td class="px-4 py-3">
+                            <a href="{% url 'adminpanel:app-announcement-edit' a.pk %}" class="font-semibold text-slate-800 hover:text-emerald-700">{{ a.title }}</a>
+                            <p class="text-xs text-slate-400 truncate max-w-[320px]">{{ a.message|default:"—" }}</p>
+                        </td>
+                        <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">
+                            {{ a.get_placement_display }}<br>
+                            <span class="text-slate-400">{{ a.get_show_on_display }} · {{ a.get_audience_display }}</span>
+                        </td>
+                        <td class="px-4 py-3 text-xs text-slate-600 hidden md:table-cell whitespace-nowrap">
+                            From {{ a.starts_at|date:"d M Y, H:i" }}<br>
+                            <span class="text-slate-400">{% if a.ends_at %}Until {{ a.ends_at|date:"d M Y, H:i" }}{% else %}No end date{% endif %}</span>
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="text-[11px] font-bold px-2 py-0.5 rounded-full border
+                                {% if row.state == 'live' %}bg-emerald-50 text-emerald-700 border-emerald-200
+                                {% elif row.state == 'scheduled' %}bg-blue-50 text-blue-700 border-blue-200
+                                {% else %}bg-slate-50 text-slate-500 border-slate-200{% endif %}">{{ row.state|capfirst }}</span>
+                        </td>
+                        <td class="px-4 py-3 text-right whitespace-nowrap">
+                            {% if can_manage %}
+                            <form method="post" action="{% url 'adminpanel:app-announcement-toggle' a.pk %}" class="inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button type="submit" class="text-xs font-semibold px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50">{% if a.is_active %}Turn off{% else %}Turn on{% endif %}</button>
+                            </form>
+                            {% endif %}
+                            <a href="{% url 'adminpanel:app-announcement-edit' a.pk %}" class="text-xs font-semibold px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 inline-block">{% if can_manage %}Edit{% else %}View{% endif %}</a>
+                        </td>
+                    </tr>
+                    {% endwith %}{% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="px-6 py-14 text-center">
+            <p class="text-sm font-medium text-slate-600">No announcements here yet</p>
+            <p class="text-xs text-slate-400 mt-1">Announcements show as a banner or a one-time popup in the app, and as a strip on the website.</p>
+        </div>
+        {% endif %}
+
+        {% if page_obj.paginator.num_pages > 1 %}
+        <div class="flex items-center justify-between px-5 py-3 border-t border-slate-100 text-sm">
+            {% if page_obj.has_previous %}<a href="?state={{ state }}&page={{ page_obj.previous_page_number }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">← Previous</a>{% else %}<span></span>{% endif %}
+            <span class="text-xs text-slate-500">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}<a href="?state={{ state }}&page={{ page_obj.next_page_number }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">Next →</a>{% else %}<span></span>{% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

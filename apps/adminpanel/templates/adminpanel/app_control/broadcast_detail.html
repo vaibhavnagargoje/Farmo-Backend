@@ -1,0 +1,90 @@
+{% extends 'adminpanel/base.html' %}
+{% block title %}{{ broadcast.title }} | Farmo Admin{% endblock %}
+{% block nav_appcontrol %}active{% endblock %}
+{% block nav_appcontrol_open %}open{% endblock %}
+{% block extra_head %}{% if refresh %}<meta http-equiv="refresh" content="4">{% endif %}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'adminpanel:app-control' %}" class="hover:text-slate-800">App control</a>
+<span class="text-slate-300">/</span>
+<a href="{% url 'adminpanel:app-broadcasts' %}" class="hover:text-slate-800">Broadcasts</a>
+<span class="text-slate-300">/</span>
+<span class="font-semibold text-slate-800">{{ broadcast.title }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-5 max-w-4xl mx-auto">
+
+    {% include 'adminpanel/app_control/_tabs.html' %}
+
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-sm">
+        <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h1 class="text-base font-bold text-slate-900">{{ broadcast.title }}</h1>
+                <p class="text-xs text-slate-500 mt-0.5">To {{ broadcast.get_audience_display|lower }} · created {{ broadcast.created_at|date:"d M Y, H:i" }}{% if broadcast.created_by %} by {{ broadcast.created_by.phone_number }}{% endif %}</p>
+            </div>
+            <span class="text-xs font-bold px-2.5 py-1 rounded-full border
+                {% if broadcast.status == 'SENT' %}bg-emerald-50 text-emerald-700 border-emerald-200
+                {% elif broadcast.status == 'SENDING' %}bg-blue-50 text-blue-700 border-blue-200
+                {% elif broadcast.status == 'FAILED' %}bg-rose-50 text-rose-700 border-rose-200
+                {% else %}bg-slate-50 text-slate-600 border-slate-200{% endif %}">{{ broadcast.get_status_display }}</span>
+        </div>
+
+        <div class="p-5 space-y-4">
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p class="text-[10px] font-bold tracking-wider text-slate-500 mb-1">EN</p>
+                <p class="text-sm font-semibold text-slate-900">{{ broadcast.title }}</p>
+                <p class="text-sm text-slate-700 mt-0.5 whitespace-pre-line">{{ broadcast.message }}</p>
+            </div>
+            {% for language, title, message in translations %}
+            <div class="rounded-xl border border-slate-200 p-4">
+                <p class="text-[10px] font-bold tracking-wider text-slate-500 mb-1">{{ language|upper }}</p>
+                {% if title or message %}
+                <p class="text-sm font-semibold text-slate-900">{{ title|default:broadcast.title }}</p>
+                <p class="text-sm text-slate-700 mt-0.5 whitespace-pre-line">{{ message|default:broadcast.message }}</p>
+                {% else %}
+                <p class="text-xs text-slate-400">Not translated. {{ language }} speakers get the English text.</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    {% if broadcast.status == 'DRAFT' %}
+    <section class="bg-white rounded-2xl border border-amber-200 shadow-sm p-5 space-y-3">
+        <p class="text-sm text-slate-800">This will notify <strong>{{ recipient_count }} {{ audience_noun }}</strong>. {{ device_count }} of their devices can receive a push; everyone also gets it in their notification list.</p>
+        <p class="text-xs text-slate-500">A broadcast can be sent only once.</p>
+        {% if can_manage %}
+        <div class="flex flex-wrap items-center gap-3">
+            <form method="post" action="{% url 'adminpanel:app-broadcast-send' broadcast.pk %}"
+                  onsubmit="return confirm('Send this to {{ recipient_count }} {{ audience_noun }} now?');">
+                {% csrf_token %}
+                <button type="submit" class="bg-green-500 hover:bg-green-600 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm">Send now</button>
+            </form>
+            <a href="{% url 'adminpanel:app-broadcast-edit' broadcast.pk %}" class="text-sm font-semibold text-slate-600 px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50">Edit</a>
+        </div>
+        {% endif %}
+    </section>
+    {% else %}
+    <section class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <p class="text-xs font-medium text-slate-500">In notification lists</p>
+            <p class="text-2xl font-bold text-slate-900 mt-1">{{ broadcast.recipients }}</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <p class="text-xs font-medium text-slate-500">Push delivered to devices</p>
+            <p class="text-2xl font-bold text-emerald-700 mt-1">{{ broadcast.push_success }}</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <p class="text-xs font-medium text-slate-500">Push failed</p>
+            <p class="text-2xl font-bold text-slate-700 mt-1">{{ broadcast.push_failure }}</p>
+        </div>
+    </section>
+    {% if broadcast.sent_at %}<p class="text-xs text-slate-500">Finished {{ broadcast.sent_at|date:"d M Y, H:i" }}.</p>{% endif %}
+    {% if broadcast.status == 'SENDING' %}<p class="text-xs text-blue-700">Sending… this page refreshes by itself.</p>{% endif %}
+    {% if broadcast.error %}<p class="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">{{ broadcast.error }}</p>{% endif %}
+    {% endif %}
+
+    <a href="{% url 'adminpanel:app-broadcasts' %}" class="inline-block text-sm font-semibold text-slate-500 hover:text-slate-800">← All broadcasts</a>
+</div>
+{% endblock %}

@@ -74,3 +74,13 @@ def _can_toggle_active(actor, target_user):
     if actor_role == User.Role.ADMIN:
         return target_user.role != User.Role.SUPERADMIN
     return False
+
+
+def can_manage_app_control(user):
+    """
+    Maintenance mode, forced updates, announcements and broadcasts reach every
+    user, so only Admin and Super Admin may change them. Managers can view.
+    """
+    if not user.is_authenticated:
+        return False
+    return _get_actor_role(user) in {User.Role.ADMIN, User.Role.SUPERADMIN}

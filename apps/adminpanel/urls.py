@@ -64,6 +64,19 @@ urlpatterns = [
     path('bookings/quick-book/categories/', views.quick_book_categories, name='quick-book-categories'),
     path('bookings/quick-book/create/', views.quick_book_create, name='quick-book-create'),
 
+    # ── App control: maintenance, app versions, announcements, broadcasts ──
+    path('app-control/', views.app_status, name='app-control'),
+    path('app-control/announcements/', views.announcements_list, name='app-announcements'),
+    path('app-control/announcements/new/', views.announcement_edit, name='app-announcement-new'),
+    path('app-control/announcements/<int:pk>/', views.announcement_edit, name='app-announcement-edit'),
+    path('app-control/announcements/<int:pk>/toggle/', views.announcement_toggle, name='app-announcement-toggle'),
+    path('app-control/announcements/<int:pk>/delete/', views.announcement_delete, name='app-announcement-delete'),
+    path('app-control/broadcasts/', views.broadcasts_list, name='app-broadcasts'),
+    path('app-control/broadcasts/new/', views.broadcast_edit, name='app-broadcast-new'),
+    path('app-control/broadcasts/<int:pk>/', views.broadcast_detail, name='app-broadcast-detail'),
+    path('app-control/broadcasts/<int:pk>/edit/', views.broadcast_edit, name='app-broadcast-edit'),
+    path('app-control/broadcasts/<int:pk>/send/', views.broadcast_send, name='app-broadcast-send'),
+
     # Booking detail (catch-all last; ids look like FB-XXXXXXXX, older ones BK-XXXXXXXX)
     path('bookings/<str:booking_id>/', views.booking_detail, name='booking-detail'),
 ]

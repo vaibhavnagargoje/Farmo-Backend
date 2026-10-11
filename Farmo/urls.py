@@ -67,6 +67,9 @@ urlpatterns = [
 
     # Admin Panel App
     path('api/v1/admin/', include('adminpanel.urls', namespace='adminpanel')),
+
+    # App control: maintenance, app versions, announcements (public config)
+    path('api/v1/app/', include('appcontrol.urls', namespace='appcontrol')),
 ]
 
 if settings.DEBUG:

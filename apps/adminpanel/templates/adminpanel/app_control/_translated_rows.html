@@ -1,0 +1,18 @@
+{% comment %}
+English, Hindi and Marathi inputs for each translatable field of `form`.
+English is required where the field is; the app falls back to English.
+{% endcomment %}
+{% for label, fields in form.translation_rows %}
+<div>
+    <p class="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">{{ label }}</p>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        {% for lang, field in fields %}
+        <div>
+            <span class="inline-block text-[10px] font-bold tracking-wider text-slate-500 bg-slate-100 rounded px-1.5 py-0.5 mb-1">{{ lang }}{% if lang != 'EN' %} · optional{% endif %}</span>
+            {{ field }}
+            {% if field.errors %}<p class="text-xs text-rose-600 mt-1">{{ field.errors|join:", " }}</p>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endfor %}

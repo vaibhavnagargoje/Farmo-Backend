@@ -85,6 +85,7 @@ INSTALLED_APPS = [
     'search',
     'labor_services',
     'availability',
+    'appcontrol',
 ]
 
 
@@ -112,6 +113,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Maintenance mode and minimum app version for /api/v1/ (see apps/appcontrol)
+    'appcontrol.middleware.AppControlMiddleware',
 ]
 if DEBUG:
     MIDDLEWARE += [

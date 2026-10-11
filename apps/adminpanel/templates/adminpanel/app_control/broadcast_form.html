@@ -1,0 +1,42 @@
+{% extends 'adminpanel/base.html' %}
+{% block title %}{{ page_title }} | Farmo Admin{% endblock %}
+{% block nav_appcontrol %}active{% endblock %}
+{% block nav_appcontrol_open %}open{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'adminpanel:app-control' %}" class="hover:text-slate-800">App control</a>
+<span class="text-slate-300">/</span>
+<a href="{% url 'adminpanel:app-broadcasts' %}" class="hover:text-slate-800">Broadcasts</a>
+<span class="text-slate-300">/</span>
+<span class="font-semibold text-slate-800">{% if broadcast %}Edit draft{% else %}New{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-5 max-w-5xl mx-auto">
+
+    {% include 'adminpanel/app_control/_tabs.html' %}
+
+    <form method="post" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-6">
+        {% csrf_token %}
+        <fieldset {% if not can_manage %}disabled{% endif %} class="space-y-6">
+            {% if form.non_field_errors %}<p class="text-sm text-rose-600">{{ form.non_field_errors|join:", " }}</p>{% endif %}
+
+            <div class="max-w-xs">
+                <label class="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5" for="{{ form.audience.id_for_label }}">{{ form.audience.label }}</label>
+                {{ form.audience }}
+            </div>
+
+            {% include 'adminpanel/app_control/_translated_rows.html' with form=form %}
+
+            <p class="text-xs text-slate-400">Each person gets the text in their app language, or English when that language is empty. Keep the message short: phones show only the first two lines of a push.</p>
+        </fieldset>
+
+        <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+            <a href="{% if broadcast %}{% url 'adminpanel:app-broadcast-detail' broadcast.pk %}{% else %}{% url 'adminpanel:app-broadcasts' %}{% endif %}" class="text-sm font-semibold text-slate-500 hover:text-slate-800">← Back</a>
+            {% if can_manage %}
+            <button type="submit" class="bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold px-4 py-2 rounded-xl">Save and review</button>
+            {% endif %}
+        </div>
+    </form>
+</div>
+{% endblock %}

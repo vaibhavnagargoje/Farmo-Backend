@@ -1,0 +1,106 @@
+{% extends 'adminpanel/base.html' %}
+{% block title %}App control | Farmo Admin{% endblock %}
+{% block nav_appcontrol %}active{% endblock %}
+{% block nav_appcontrol_open %}open{% endblock %}
+
+{% block breadcrumb %}
+<span class="font-semibold text-slate-800">App control</span>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-5 max-w-6xl mx-auto">
+
+    {% include 'adminpanel/app_control/_tabs.html' %}
+
+    <!-- ── Maintenance ──────────────────────────────────────────── -->
+    <section class="bg-white rounded-2xl border {% if control.maintenance_on %}border-rose-300{% else %}border-slate-200{% endif %} shadow-sm">
+        <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h2 class="text-base font-bold text-slate-900">Maintenance mode</h2>
+                <p class="text-xs text-slate-500 mt-0.5">The app shows a full-screen maintenance message. The website shows a strip at the top. This admin panel keeps working.</p>
+            </div>
+            {% if control.maintenance_on %}
+            <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 border border-rose-200">ON · app blocked</span>
+            {% else %}
+            <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Off · app working</span>
+            {% endif %}
+        </div>
+        <form method="post" class="p-5 space-y-5">
+            {% csrf_token %}
+            <input type="hidden" name="section" value="maintenance">
+            <fieldset {% if not can_manage %}disabled{% endif %} class="space-y-5">
+                <div class="flex flex-wrap gap-6">
+                    <div class="toggle-wrap">
+                        {{ maintenance_form.maintenance_on }}
+                        <label for="{{ maintenance_form.maintenance_on.id_for_label }}"><div class="toggle-track"></div><span class="text-sm font-semibold text-slate-800">Maintenance mode on</span></label>
+                    </div>
+                    <div class="toggle-wrap">
+                        {{ maintenance_form.block_api_during_maintenance }}
+                        <label for="{{ maintenance_form.block_api_during_maintenance.id_for_label }}"><div class="toggle-track"></div><span class="text-sm text-slate-700">Also refuse app requests <span class="text-slate-400">(recommended while you change the database)</span></span></label>
+                    </div>
+                </div>
+                {% include 'adminpanel/app_control/_translated_rows.html' with form=maintenance_form %}
+                <div class="max-w-xs">
+                    <label class="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">{{ maintenance_form.maintenance_ends_at.label }}</label>
+                    {{ maintenance_form.maintenance_ends_at }}
+                    {% if maintenance_form.maintenance_ends_at.errors %}<p class="text-xs text-rose-600 mt-1">{{ maintenance_form.maintenance_ends_at.errors|join:", " }}</p>{% endif %}
+                </div>
+                <p class="text-xs text-slate-400">Leave the texts empty to use the app's built-in maintenance message.</p>
+                {% if can_manage %}
+                <div class="flex justify-end">
+                    <button type="submit" class="bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold px-4 py-2 rounded-xl">Save maintenance</button>
+                </div>
+                {% endif %}
+            </fieldset>
+        </form>
+    </section>
+
+    <!-- ── App versions ─────────────────────────────────────────── -->
+    {% for card in release_cards %}
+    {% with form=card.form release=card.release %}
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-sm">
+        <div class="px-5 py-4 border-b border-slate-100">
+            <h2 class="text-base font-bold text-slate-900">{{ release.get_platform_display }} app versions</h2>
+            <p class="text-sm text-slate-700 mt-1">{{ card.summary }}</p>
+            {% if release.updated_at %}<p class="text-[11px] text-slate-400 mt-1">Last changed {{ release.updated_at|timesince }} ago{% if release.updated_by %} by {{ release.updated_by.phone_number }}{% endif %}</p>{% endif %}
+        </div>
+        <form method="post" class="p-5 space-y-5">
+            {% csrf_token %}
+            <input type="hidden" name="section" value="{{ release.platform }}">
+            <fieldset {% if not can_manage %}disabled{% endif %} class="space-y-5">
+                {% if form.non_field_errors %}<p class="text-sm text-rose-600">{{ form.non_field_errors|join:", " }}</p>{% endif %}
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {% for field in form %}{% if field.name in 'latest_version latest_build min_supported_build' %}
+                    <div>
+                        <label class="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.help_text %}<p class="text-[11px] text-slate-400 mt-1">{{ field.help_text }}</p>{% endif %}
+                        {% if field.errors %}<p class="text-xs text-rose-600 mt-1">{{ field.errors|join:", " }}</p>{% endif %}
+                    </div>
+                    {% endif %}{% endfor %}
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                    <div>
+                        <label class="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5" for="{{ form.store_url.id_for_label }}">{{ form.store_url.label }}</label>
+                        {{ form.store_url }}
+                        {% if form.store_url.errors %}<p class="text-xs text-rose-600 mt-1">{{ form.store_url.errors|join:", " }}</p>{% endif %}
+                    </div>
+                    <div class="toggle-wrap pb-2">
+                        {{ form.soft_update_enabled }}
+                        <label for="{{ form.soft_update_enabled.id_for_label }}"><div class="toggle-track"></div><span class="text-sm text-slate-700">{{ form.soft_update_enabled.label }}</span></label>
+                    </div>
+                </div>
+                {% include 'adminpanel/app_control/_translated_rows.html' with form=form %}
+                <p class="text-xs text-slate-400">The build number is the Android versionCode in build.gradle (for example 27 for 1.0.27). Raise the minimum only after the new version is live in the store.</p>
+                {% if can_manage %}
+                <div class="flex justify-end">
+                    <button type="submit" class="bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold px-4 py-2 rounded-xl">Save {{ release.get_platform_display }} versions</button>
+                </div>
+                {% endif %}
+            </fieldset>
+        </form>
+    </section>
+    {% endwith %}
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% comment %}Section tabs shown at the top of every App control page (mirrors the sidebar group).{% endcomment %}
+{% with url_name=request.resolver_match.url_name %}
+<div class="border-b border-slate-200">
+    <nav class="flex items-center gap-1 overflow-x-auto -mb-px" aria-label="App control sections">
+        <a href="{% url 'adminpanel:app-control' %}" class="whitespace-nowrap px-3.5 py-2.5 text-sm font-semibold border-b-2 transition-colors {% if url_name == 'app-control' %}border-emerald-500 text-emerald-700{% else %}border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300{% endif %}">Status &amp; versions</a>
+        <a href="{% url 'adminpanel:app-announcements' %}" class="whitespace-nowrap px-3.5 py-2.5 text-sm font-semibold border-b-2 transition-colors {% if 'app-announcement' in url_name %}border-emerald-500 text-emerald-700{% else %}border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300{% endif %}">Announcements</a>
+        <a href="{% url 'adminpanel:app-broadcasts' %}" class="whitespace-nowrap px-3.5 py-2.5 text-sm font-semibold border-b-2 transition-colors {% if 'app-broadcast' in url_name %}border-emerald-500 text-emerald-700{% else %}border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300{% endif %}">Broadcasts</a>
+    </nav>
+</div>
+{% endwith %}
+{% if not can_manage %}
+<div class="rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-sm px-4 py-3">
+    You can view these settings. Only Admin and Super Admin can change them.
+</div>
+{% endif %}

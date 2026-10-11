@@ -1,0 +1,76 @@
+{% extends 'adminpanel/base.html' %}
+{% block title %}Broadcasts | Farmo Admin{% endblock %}
+{% block nav_appcontrol %}active{% endblock %}
+{% block nav_appcontrol_open %}open{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'adminpanel:app-control' %}" class="hover:text-slate-800">App control</a>
+<span class="text-slate-300">/</span>
+<span class="font-semibold text-slate-800">Broadcasts</span>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-4 max-w-6xl mx-auto">
+
+    {% include 'adminpanel/app_control/_tabs.html' %}
+
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <p class="text-sm text-slate-500">A broadcast is a push notification plus an entry in each person's notification list, in their own language.</p>
+        {% if can_manage %}
+        <a href="{% url 'adminpanel:app-broadcast-new' %}" class="inline-flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm">+ New broadcast</a>
+        {% endif %}
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {% if page_obj.object_list %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-slate-50 text-[11px] text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                        <th class="text-left px-4 py-3 font-semibold">Broadcast</th>
+                        <th class="text-left px-4 py-3 font-semibold">Sent to</th>
+                        <th class="text-left px-4 py-3 font-semibold">Status</th>
+                        <th class="text-right px-4 py-3 font-semibold hidden sm:table-cell">Reached</th>
+                        <th class="text-left px-4 py-3 font-semibold hidden md:table-cell">Created</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for b in page_obj %}
+                    <tr class="hover:bg-slate-50/80">
+                        <td class="px-4 py-3">
+                            <a href="{% url 'adminpanel:app-broadcast-detail' b.pk %}" class="font-semibold text-slate-800 hover:text-emerald-700">{{ b.title }}</a>
+                            <p class="text-xs text-slate-400 truncate max-w-[320px]">{{ b.message }}</p>
+                        </td>
+                        <td class="px-4 py-3 text-xs text-slate-600">{{ b.get_audience_display }}</td>
+                        <td class="px-4 py-3">
+                            <span class="text-[11px] font-bold px-2 py-0.5 rounded-full border
+                                {% if b.status == 'SENT' %}bg-emerald-50 text-emerald-700 border-emerald-200
+                                {% elif b.status == 'SENDING' %}bg-blue-50 text-blue-700 border-blue-200
+                                {% elif b.status == 'FAILED' %}bg-rose-50 text-rose-700 border-rose-200
+                                {% else %}bg-slate-50 text-slate-500 border-slate-200{% endif %}">{{ b.get_status_display }}</span>
+                        </td>
+                        <td class="px-4 py-3 text-right text-xs text-slate-600 hidden sm:table-cell whitespace-nowrap">
+                            {% if b.status == 'DRAFT' %}—{% else %}{{ b.recipients }} people · {{ b.push_success }} devices{% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-xs text-slate-400 hidden md:table-cell whitespace-nowrap">{{ b.created_at|timesince }} ago{% if b.created_by %} · {{ b.created_by.phone_number }}{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="px-6 py-14 text-center">
+            <p class="text-sm font-medium text-slate-600">No broadcasts yet</p>
+        </div>
+        {% endif %}
+
+        {% if page_obj.paginator.num_pages > 1 %}
+        <div class="flex items-center justify-between px-5 py-3 border-t border-slate-100 text-sm">
+            {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">← Previous</a>{% else %}<span></span>{% endif %}
+            <span class="text-xs text-slate-500">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">Next →</a>{% else %}<span></span>{% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

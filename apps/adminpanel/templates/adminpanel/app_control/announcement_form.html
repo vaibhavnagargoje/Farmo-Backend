@@ -1,0 +1,89 @@
+{% extends 'adminpanel/base.html' %}
+{% block title %}{{ page_title }} | Farmo Admin{% endblock %}
+{% block nav_appcontrol %}active{% endblock %}
+{% block nav_appcontrol_open %}open{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'adminpanel:app-control' %}" class="hover:text-slate-800">App control</a>
+<span class="text-slate-300">/</span>
+<a href="{% url 'adminpanel:app-announcements' %}" class="hover:text-slate-800">Announcements</a>
+<span class="text-slate-300">/</span>
+<span class="font-semibold text-slate-800">{% if announcement %}{{ announcement.title }}{% else %}New{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-5 max-w-5xl mx-auto">
+
+    {% include 'adminpanel/app_control/_tabs.html' %}
+
+    <form method="post" enctype="multipart/form-data" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-6">
+        {% csrf_token %}
+        <fieldset {% if not can_manage %}disabled{% endif %} class="space-y-6">
+            {% if form.non_field_errors %}<p class="text-sm text-rose-600">{{ form.non_field_errors|join:", " }}</p>{% endif %}
+
+            {% include 'adminpanel/app_control/_translated_rows.html' with form=form %}
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {% for field in form %}{% if field.name == 'placement' or field.name == 'style' or field.name == 'audience' or field.name == 'show_on' %}
+                <div>
+                    <label class="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}<p class="text-xs text-rose-600 mt-1">{{ field.errors|join:", " }}</p>{% endif %}
+                </div>
+                {% endif %}{% endfor %}
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {% for field in form %}{% if field.name == 'cta_url' or field.name == 'starts_at' or field.name == 'ends_at' %}
+                <div>
+                    <label class="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.help_text %}<p class="text-[11px] text-slate-400 mt-1">{{ field.help_text }}</p>{% endif %}
+                    {% if field.errors %}<p class="text-xs text-rose-600 mt-1">{{ field.errors|join:", " }}</p>{% endif %}
+                </div>
+                {% endif %}{% endfor %}
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5" for="{{ form.image.id_for_label }}">Image (optional)</label>
+                    {{ form.image }}
+                    <p class="text-[11px] text-slate-400 mt-1">A wide image works best, about 3:1.</p>
+                    {% if form.image.errors %}<p class="text-xs text-rose-600 mt-1">{{ form.image.errors|join:", " }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5" for="{{ form.priority.id_for_label }}">Priority</label>
+                    {{ form.priority }}
+                    <p class="text-[11px] text-slate-400 mt-1">{{ form.priority.help_text }}</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-6">
+                <div class="toggle-wrap">
+                    {{ form.is_active }}
+                    <label for="{{ form.is_active.id_for_label }}"><div class="toggle-track"></div><span class="text-sm text-slate-700">{{ form.is_active.label }}</span></label>
+                </div>
+                <div class="toggle-wrap">
+                    {{ form.dismissible }}
+                    <label for="{{ form.dismissible.id_for_label }}"><div class="toggle-track"></div><span class="text-sm text-slate-700">{{ form.dismissible.label }}</span></label>
+                </div>
+            </div>
+        </fieldset>
+
+        <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+            <a href="{% url 'adminpanel:app-announcements' %}" class="text-sm font-semibold text-slate-500 hover:text-slate-800">← Back to announcements</a>
+            {% if can_manage %}
+            <button type="submit" class="bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold px-4 py-2 rounded-xl">Save announcement</button>
+            {% endif %}
+        </div>
+    </form>
+
+    {% if announcement and can_manage %}
+    <form method="post" action="{% url 'adminpanel:app-announcement-delete' announcement.pk %}" class="text-right"
+          onsubmit="return confirm('Delete this announcement? This cannot be undone.');">
+        {% csrf_token %}
+        <button type="submit" class="text-xs font-semibold text-rose-600 hover:underline">Delete announcement</button>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}
